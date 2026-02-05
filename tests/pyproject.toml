@@ -1,0 +1,13 @@
+[tool.poetry]
+name = "claude-code-tests"
+version = "0.1.0"
+description = "Tests for Claude Code integration"
+authors = ["Your Name"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+requests = "^2.31.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

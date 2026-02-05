@@ -6,10 +6,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:claude": "tsx scripts/test-claude-code.ts",
+    "test:visual": "tsx scripts/test-visual-agent.ts",
+    "test:replace": "tsx scripts/test-replace-agent.ts",
+    "pipeline": "tsx scripts/run-pipeline.ts"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.31",
+    "dotenv": "^16.4.5",
     "next": "16.1.6",
+    "openai": "^6.17.0",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
@@ -21,6 +28,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
+    "tsx": "^4.19.0",
     "typescript": "^5"
   }
 }
