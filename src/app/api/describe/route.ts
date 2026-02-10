@@ -61,7 +61,7 @@ Write a cohesive visual description that an illustrator could use. Focus on the 
         promptText += `\n\nAdditional context: ${text}`;
       }
 
-      promptText += `\n\nOutput ONLY the visual description, nothing else.`;
+      promptText += `\n\nOutput ONLY the visual description, nothing else. Keep the output under 2500 characters.`;
       return promptText;
     }
 
@@ -76,7 +76,7 @@ Write a cohesive visual description that an illustrator could use. Focus on the 
         const description = await callClaudeVision(promptText, claudeImages);
         return NextResponse.json({ description });
       } else if (text) {
-        const textPrompt = `You are an expert prompt engineer. Take this simple prompt and transform it into a detailed, rich prompt for AI image generation.\n\nAdd specific visual details, art style, composition, mood, and quality boosters.\n\nOutput ONLY the improved prompt, nothing else.\n\nSimple prompt: "${text}"`;
+        const textPrompt = `You are an expert prompt engineer. Take this simple prompt and transform it into a detailed, rich prompt for AI image generation.\n\nAdd specific visual details, art style, composition, mood, and quality boosters.\n\nOutput ONLY the improved prompt, nothing else. Keep the output under 2500 characters.\n\nSimple prompt: "${text}"`;
         const description = await callClaudeText(textPrompt);
         return NextResponse.json({ description });
       }
@@ -178,7 +178,7 @@ Write a cohesive visual description that an illustrator could use. Focus on the 
 
 Add specific visual details, art style, composition, mood, and quality boosters.
 
-Output ONLY the improved prompt, nothing else.
+Output ONLY the improved prompt, nothing else. Keep the output under 2500 characters.
 
 Simple prompt: "${text}"`,
           },

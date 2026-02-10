@@ -7,6 +7,7 @@ import { TextOutputNode } from "./TextOutputNode";
 import { ConsistentCharacterNode } from "./ConsistentCharacterNode";
 import { StoryTellerNode } from "./StoryTellerNode";
 import { GrammarFixNode } from "./GrammarFixNode";
+import { SceneBuilderNode } from "./SceneBuilderNode";
 
 export const nodeTypes = {
   initialPrompt: InitialPromptNode,
@@ -18,4 +19,5 @@ export const nodeTypes = {
   consistentCharacter: ConsistentCharacterNode,
   storyTeller: StoryTellerNode,
   grammarFix: GrammarFixNode,
+  sceneBuilder: SceneBuilderNode,
 };

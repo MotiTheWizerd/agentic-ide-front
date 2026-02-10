@@ -4,6 +4,7 @@ import type {
   NodeOutput,
   PersonaInput,
 } from "./types";
+import { composeScenePrompt } from "../scene-prompts";
 
 // Map language codes to full names for translation prompts
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -300,6 +301,23 @@ const grammarFix: NodeExecutor = async (ctx) => {
   };
 };
 
+/** SceneBuilderNode: pure source — composes rich scene prompt from config dropdowns. */
+const sceneBuilder: NodeExecutor = async (ctx) => {
+  const { nodeData } = ctx;
+  const selections: Record<string, string> = {};
+  for (const key of ["imageStyle", "lighting", "timeOfDay", "weather", "cameraAngle", "cameraLens", "mood"]) {
+    const val = nodeData[key] as string;
+    if (val) selections[key] = val;
+  }
+
+  const text = composeScenePrompt(selections);
+  if (!text) {
+    return { success: false, output: { error: "No scene attributes selected" } };
+  }
+
+  return { success: true, output: { text } };
+};
+
 /** Registry mapping node type → executor. Groups are intentionally absent. */
 export const executorRegistry: ExecutorRegistry = {
   initialPrompt,
@@ -310,4 +328,5 @@ export const executorRegistry: ExecutorRegistry = {
   consistentCharacter,
   storyTeller,
   grammarFix,
+  sceneBuilder,
 };

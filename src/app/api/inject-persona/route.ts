@@ -57,7 +57,7 @@ Rewrite the original prompt so that each named character's physical appearance i
 7. Use the appearance traits exactly as described — be precise and faithful to each character's description.
 8. If the original prompt has NO character/person reference at all, add the characters naturally into the scene described.
 
-Output ONLY the rewritten prompt, nothing else.`;
+Output ONLY the rewritten prompt, nothing else. Keep the output under 2500 characters.`;
 
     // === Claude CLI provider ===
     if (providerId === "claude") {

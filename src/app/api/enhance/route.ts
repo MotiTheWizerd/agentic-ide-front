@@ -23,7 +23,7 @@ ${notes}
 
 Apply the enhancement instructions to improve the original prompt. Keep the core subject and intent, but enrich it with the requested changes. Add specific visual details where appropriate.
 
-Output ONLY the enhanced prompt, nothing else.`
+Output ONLY the enhanced prompt, nothing else. Keep the output under 2500 characters.`
       : `You are an expert prompt engineer specializing in AI image generation prompts.
 
 Take this simple prompt and transform it into a detailed, rich prompt for AI image generation. Add specific visual details, art style, composition, lighting, mood, and quality boosters. Keep the core subject and intent.
@@ -31,7 +31,7 @@ Take this simple prompt and transform it into a detailed, rich prompt for AI ima
 ## ORIGINAL PROMPT:
 ${text}
 
-Output ONLY the enhanced prompt, nothing else.`;
+Output ONLY the enhanced prompt, nothing else. Keep the output under 2500 characters.`;
 
     // === Claude CLI provider ===
     if (providerId === "claude") {

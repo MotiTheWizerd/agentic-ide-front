@@ -52,7 +52,7 @@ Analyze the TARGET IMAGE, then write an illustration prompt that places a figure
 
 3. Write a cohesive illustration prompt: a figure with the described physical appearance, wearing the TARGET IMAGE's outfit, in the TARGET IMAGE's pose and scene.
 
-Output ONLY the final illustration prompt, nothing else.`;
+Output ONLY the final illustration prompt, nothing else. Keep the output under 2500 characters.`;
 
     // === Claude CLI provider ===
     if (providerId === "claude") {

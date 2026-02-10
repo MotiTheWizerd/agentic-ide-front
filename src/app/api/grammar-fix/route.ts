@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       ? ` Adjust the tone to be ${style}.`
       : "";
 
-    const prompt = `Fix all grammar, spelling, and punctuation errors in the following English text.${styleInstruction} Output ONLY the corrected text, nothing else. Do not add explanations, notes, or formatting.\n\n${text}`;
+    const prompt = `Fix all grammar, spelling, and punctuation errors in the following English text.${styleInstruction} Output ONLY the corrected text, nothing else. Do not add explanations, notes, or formatting. Keep the output under 2500 characters.\n\n${text}`;
 
     // === Claude CLI provider ===
     if (providerId === "claude") {

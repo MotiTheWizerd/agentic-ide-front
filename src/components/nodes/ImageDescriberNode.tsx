@@ -7,8 +7,15 @@ import { prepareImageForAPI } from "@/lib/image-utils";
 
 export function ImageDescriberNode({ id, data }: NodeProps) {
   const updateNodeData = useFlowStore((s) => s.updateNodeData);
-  const status = useFlowStore((s) => s.execution.nodeStatus[id] || "idle");
-  const errorMessage = useFlowStore((s) => s.execution.nodeOutputs[id]?.error);
+  const runFromNode = useFlowStore((s) => s.runFromNode);
+  const status = useFlowStore((s) => s.flows[s.activeFlowId]?.execution.nodeStatus[id] || "idle");
+  const errorMessage = useFlowStore((s) => s.flows[s.activeFlowId]?.execution.nodeOutputs[id]?.error);
+  const outputText = useFlowStore((s) => s.flows[s.activeFlowId]?.execution.nodeOutputs[id]?.text);
+  const isTrigger = useFlowStore((s) => {
+    const flow = s.flows[s.activeFlowId];
+    if (!flow) return false;
+    return !flow.edges.some((e) => e.target === id && !(e.targetHandle || "").startsWith("adapter-"));
+  });
   const inputRef = useRef<HTMLInputElement>(null);
 
   const image = (data.image as string) || "";
@@ -31,8 +38,10 @@ export function ImageDescriberNode({ id, data }: NodeProps) {
       icon={<ScanEye className="w-4 h-4 text-pink-400" />}
       color="ring-pink-500/30"
       hasInput={false}
+      onTrigger={isTrigger ? () => runFromNode(id) : undefined}
       status={status}
       errorMessage={errorMessage}
+      outputText={outputText}
     >
       <div>
         <input

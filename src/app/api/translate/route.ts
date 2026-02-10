@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const prompt = `Translate the following text to ${language}. Output ONLY the translation, nothing else. Do not add explanations, notes, or formatting.\n\n${text}`;
+    const prompt = `Translate the following text to ${language}. Output ONLY the translation, nothing else. Do not add explanations, notes, or formatting. Keep the output under 2500 characters.\n\n${text}`;
 
     // === Claude CLI provider ===
     if (providerId === "claude") {

@@ -4,14 +4,16 @@ import { buildExecutionPlan } from "./graph";
 import { executorRegistry } from "./executors";
 
 /**
- * Execute the entire node graph in topological order.
+ * Execute the node graph in topological order.
  * Calls onStatus for every state transition so the UI updates in real-time.
+ * Pass cachedOutputs to pre-seed results from previously-triggered subgraphs.
  */
 export async function executeGraph(
   nodes: Node[],
   edges: Edge[],
   providerId: string,
-  onStatus: StatusCallback
+  onStatus: StatusCallback,
+  cachedOutputs?: Record<string, NodeOutput>
 ): Promise<Record<string, NodeOutput>> {
   const plan = buildExecutionPlan(nodes, edges);
 
@@ -19,7 +21,7 @@ export async function executeGraph(
     throw new Error("No executable nodes found. Connect your nodes and try again.");
   }
 
-  const outputs: Record<string, NodeOutput> = {};
+  const outputs: Record<string, NodeOutput> = { ...(cachedOutputs || {}) };
 
   // Mark all planned nodes as pending
   for (const step of plan) {

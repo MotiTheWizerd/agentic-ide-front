@@ -22,7 +22,7 @@ RULES:
 - Include specific visual details: lighting, color palette, composition, texture, atmosphere
 - Include an art style or medium (oil painting, cinematic photography, anime, watercolor, 3D render, etc.)
 - Keep it as a single flowing prompt paragraph — no bullet points, no labels
-- Output ONLY the prompt, nothing else
+- Output ONLY the prompt, nothing else. Keep the output under 2500 characters
 
 CONCEPT: ${text}${tagsSection}
 

@@ -1,6 +1,6 @@
 import { Handle, Position } from "@xyflow/react";
-import { AlertTriangle, Loader2, Settings } from "lucide-react";
-import type { ReactNode } from "react";
+import { AlertTriangle, ChevronDown, ChevronRight, Loader2, Play, Settings } from "lucide-react";
+import { type ReactNode, useState } from "react";
 import type { NodeExecutionStatus } from "@/lib/engine/types";
 
 interface BaseNodeProps {
@@ -13,8 +13,10 @@ interface BaseNodeProps {
   adapterCount?: number; // 0–5 top handles
   hasAdapterOutput?: boolean; // bottom handle for adapter sources
   onSettingsClick?: () => void;
+  onTrigger?: () => void; // show play button when provided (trigger source node)
   status?: NodeExecutionStatus;
   errorMessage?: string;
+  outputText?: string; // execution result preview
 }
 
 const statusRingClass: Record<NodeExecutionStatus, string> = {
@@ -36,9 +38,12 @@ export function BaseNode({
   adapterCount = 0,
   hasAdapterOutput = false,
   onSettingsClick,
+  onTrigger,
   status = "idle",
   errorMessage,
+  outputText,
 }: BaseNodeProps) {
+  const [outputOpen, setOutputOpen] = useState(false);
   const ringClass = status === "idle" ? color : statusRingClass[status];
 
   return (
@@ -52,7 +57,7 @@ export function BaseNode({
           type="target"
           position={Position.Top}
           id={`adapter-${i}`}
-          className="!w-3 !h-3 !bg-amber-500 !border-2 !border-gray-900"
+          className="!w-3 !h-3 !bg-red-500 !border-2 !border-gray-900"
           style={{
             left: `${((i + 1) / (adapterCount + 1)) * 100}%`,
           }}
@@ -76,6 +81,18 @@ export function BaseNode({
           {title}
         </span>
         <div className="flex items-center gap-1 ml-auto">
+          {onTrigger && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onTrigger();
+              }}
+              disabled={status === "running" || status === "pending"}
+              className="p-0.5 text-emerald-500/70 hover:text-emerald-400 transition-colors rounded disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <Play className="w-3 h-3" />
+            </button>
+          )}
           {onSettingsClick && (
             <button
               onClick={(e) => {
@@ -111,6 +128,24 @@ export function BaseNode({
         </div>
       )}
 
+      {/* Output preview */}
+      {status === "complete" && outputText && (
+        <div className="mx-3 mb-3">
+          <button
+            onClick={(e) => { e.stopPropagation(); setOutputOpen(!outputOpen); }}
+            className="flex items-center gap-1 text-[10px] text-emerald-400/80 hover:text-emerald-300 transition-colors w-full"
+          >
+            {outputOpen ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronRight className="w-2.5 h-2.5" />}
+            Output
+          </button>
+          {outputOpen && (
+            <div className="mt-1 rounded-lg bg-gray-800/60 border border-gray-700/50 px-2.5 py-2 text-[10px] text-gray-400 leading-relaxed max-h-[120px] overflow-y-auto whitespace-pre-wrap break-words nowheel">
+              {outputText}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Text output handle (right) */}
       {hasOutput && (
         <Handle
@@ -127,7 +162,7 @@ export function BaseNode({
           type="source"
           position={Position.Bottom}
           id="adapter-out"
-          className="!w-3 !h-3 !bg-amber-500 !border-2 !border-gray-900"
+          className="!w-3 !h-3 !bg-green-500 !border-2 !border-gray-900"
         />
       )}
     </div>

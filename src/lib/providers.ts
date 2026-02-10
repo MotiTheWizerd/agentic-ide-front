@@ -21,7 +21,7 @@ const providerConfigs: Record<string, Omit<Provider, "client"> & { baseURL: stri
   mistral: {
     id: "mistral",
     name: "Mistral AI",
-    textModel: "magistral-medium-2509",
+    textModel: "ministral-14b-2512",
     visionModel: "pixtral-12b-2409",
     supportsVision: true,
     baseURL: "https://api.mistral.ai/v1",

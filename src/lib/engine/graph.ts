@@ -44,12 +44,8 @@ export function buildExecutionPlan(
     sorted.push({
       nodeId,
       nodeType: node.type || "unknown",
-      inputNodeIds: getTextInputNodeIds(nodeId, edges).filter((id) =>
-        nodeIds.has(id)
-      ),
-      adapterNodeIds: getAdapterInputNodeIds(nodeId, edges).filter((id) =>
-        nodeIds.has(id)
-      ),
+      inputNodeIds: getTextInputNodeIds(nodeId, edges),
+      adapterNodeIds: getAdapterInputNodeIds(nodeId, edges),
     });
 
     for (const target of adjacency.get(nodeId) || []) {
@@ -91,4 +87,29 @@ export function getAdapterInputNodeIds(
         (e.targetHandle || "").startsWith("adapter-")
     )
     .map((e) => e.source);
+}
+
+/** BFS from a start node to find all downstream nodes (inclusive). */
+export function getDownstreamNodes(
+  startNodeId: string,
+  nodes: Node[],
+  edges: Edge[]
+): Set<string> {
+  const nodeIds = new Set(nodes.map((n) => n.id));
+  const downstream = new Set<string>([startNodeId]);
+  const queue = [startNodeId];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const edge of edges) {
+      if (
+        edge.source === current &&
+        nodeIds.has(edge.target) &&
+        !downstream.has(edge.target)
+      ) {
+        downstream.add(edge.target);
+        queue.push(edge.target);
+      }
+    }
+  }
+  return downstream;
 }

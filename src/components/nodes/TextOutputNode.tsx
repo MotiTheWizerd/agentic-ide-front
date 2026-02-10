@@ -5,8 +5,14 @@ import { BaseNode } from "./BaseNode";
 import { useFlowStore } from "@/store/flow-store";
 
 export function TextOutputNode({ id, data }: NodeProps) {
-  const status = useFlowStore((s) => s.execution.nodeStatus[id] || "idle");
-  const errorMessage = useFlowStore((s) => s.execution.nodeOutputs[id]?.error);
+  const runFromNode = useFlowStore((s) => s.runFromNode);
+  const status = useFlowStore((s) => s.flows[s.activeFlowId]?.execution.nodeStatus[id] || "idle");
+  const errorMessage = useFlowStore((s) => s.flows[s.activeFlowId]?.execution.nodeOutputs[id]?.error);
+  const isTrigger = useFlowStore((s) => {
+    const flow = s.flows[s.activeFlowId];
+    if (!flow) return false;
+    return !flow.edges.some((e) => e.target === id && !(e.targetHandle || "").startsWith("adapter-"));
+  });
   const text = (data.text as string) || "";
   const [copied, setCopied] = useState(false);
 
@@ -23,6 +29,7 @@ export function TextOutputNode({ id, data }: NodeProps) {
       icon={<FileText className="w-4 h-4 text-emerald-400" />}
       color="ring-emerald-500/30"
       hasOutput={false}
+      onTrigger={isTrigger ? () => runFromNode(id) : undefined}
       status={status}
       errorMessage={errorMessage}
     >

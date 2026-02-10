@@ -12,8 +12,8 @@ const statusRing: Record<NodeExecutionStatus, string> = {
 };
 
 export function ConsistentCharacterNode({ id, data }: NodeProps) {
-  const status = useFlowStore((s) => s.execution.nodeStatus[id] || "idle");
-  const errorMessage = useFlowStore((s) => s.execution.nodeOutputs[id]?.error);
+  const status = useFlowStore((s) => s.flows[s.activeFlowId]?.execution.nodeStatus[id] || "idle");
+  const errorMessage = useFlowStore((s) => s.flows[s.activeFlowId]?.execution.nodeOutputs[id]?.error);
 
   const name = (data.characterName as string) || "Unknown";
   const imagePath = (data.characterImagePath as string) || "";
@@ -48,7 +48,7 @@ export function ConsistentCharacterNode({ id, data }: NodeProps) {
         type="source"
         position={Position.Bottom}
         id="adapter-out"
-        className="!w-3 !h-3 !bg-amber-500 !border-2 !border-gray-900"
+        className="!w-3 !h-3 !bg-green-500 !border-2 !border-gray-900"
       />
     </div>
   );

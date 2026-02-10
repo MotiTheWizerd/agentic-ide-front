@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useMemo } from "react";
 import {
   ReactFlow,
   Background,
@@ -10,6 +10,7 @@ import {
   useReactFlow,
   ReactFlowProvider,
   type Node,
+  type Edge,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -17,9 +18,7 @@ import {
   Sparkles,
   Languages,
   Group,
-  Play,
   FileText,
-  Loader2,
   AlertCircle,
   X,
   ScanEye,
@@ -30,11 +29,15 @@ import {
   Puzzle,
   BookOpen,
   SpellCheck,
+  CloudSun,
 } from "lucide-react";
 import { useFlowStore } from "@/store/flow-store";
 import { nodeTypes } from "@/components/nodes";
 import { getCharacters, type Character } from "@/lib/characters";
 import { ProviderSelect } from "@/components/shared/ProviderSelect";
+import { TabBar } from "@/components/TabBar";
+import { initAutoSave } from "@/lib/auto-save";
+import type { FlowData } from "@/store/types";
 
 type SidebarItem = { type: string; label: string; icon: React.ComponentType<{ className?: string }>; color: string };
 type SidebarGroup = { label: string; items: SidebarItem[] };
@@ -45,6 +48,12 @@ const componentGroups: SidebarGroup[] = [
     items: [
       { type: "initialPrompt", label: "Initial Prompt", icon: MessageSquareText, color: "text-cyan-400" },
       { type: "imageDescriber", label: "Image Describer", icon: ScanEye, color: "text-pink-400" },
+    ],
+  },
+  {
+    label: "Scene Atmosphere",
+    items: [
+      { type: "sceneBuilder", label: "Scene Builder", icon: CloudSun, color: "text-sky-400" },
     ],
   },
   {
@@ -81,9 +90,10 @@ export default function Dashboard() {
 }
 
 function DashboardInner() {
+  const nodes = useFlowStore((s) => s.flows[s.activeFlowId]?.nodes ?? []);
+  const edges = useFlowStore((s) => s.flows[s.activeFlowId]?.edges ?? []);
+  const execution = useFlowStore((s) => s.flows[s.activeFlowId]?.execution);
   const {
-    nodes,
-    edges,
     onNodesChange,
     onEdgesChange,
     onConnect,
@@ -91,11 +101,27 @@ function DashboardInner() {
     setHoveredGroupId,
     setNodeParent,
     removeNodeFromGroup,
-    execution,
-    runPipeline,
     setProviderId,
   } = useFlowStore();
   const { screenToFlowPosition, getIntersectingNodes } = useReactFlow();
+
+  // Animate edges while any node is running or pending
+  const isAnyRunning = useMemo(
+    () => Object.values(execution?.nodeStatus || {}).some((s) => s === "running" || s === "pending"),
+    [execution?.nodeStatus]
+  );
+  const animatedEdges = useMemo(
+    () => edges.map((e) => ({ ...e, animated: isAnyRunning })),
+    [edges, isAnyRunning]
+  );
+
+  // Double-click an edge to disconnect it
+  const onEdgeDoubleClick = useCallback(
+    (_event: React.MouseEvent, edge: Edge) => {
+      onEdgesChange([{ id: edge.id, type: "remove" }]);
+    },
+    [onEdgesChange]
+  );
 
   // Sidebar collapse state
   const [assetsOpen, setAssetsOpen] = useState(true);
@@ -109,6 +135,45 @@ function DashboardInner() {
     setOpenSubs((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
+  // Initialize auto-save and load saved flows on mount
+  useEffect(() => {
+    initAutoSave();
+
+    fetch("/api/flows")
+      .then((r) => r.json())
+      .then(async (data: { flows: { id: string; name: string }[] }) => {
+        if (!data.flows || data.flows.length === 0) return;
+        for (const summary of data.flows) {
+          const res = await fetch(`/api/flows/${summary.id}`);
+          if (!res.ok) continue;
+          const flowJson = await res.json();
+          const flowData: FlowData = {
+            id: flowJson.id,
+            name: flowJson.name,
+            nodes: flowJson.nodes || [],
+            edges: flowJson.edges || [],
+            hoveredGroupId: null,
+            execution: {
+              isRunning: false,
+              nodeStatus: {},
+              nodeOutputs: {},
+              globalError: null,
+              providerId: flowJson.providerId || "mistral",
+            },
+            isDirty: false,
+            lastSavedAt: flowJson.updatedAt || null,
+          };
+          useFlowStore.getState().loadFlowData(flowData);
+        }
+        // Switch to first loaded flow
+        const firstId = data.flows[0].id;
+        useFlowStore.getState().switchFlow(firstId);
+      })
+      .catch(() => {
+        // No saved flows — keep the default empty flow
+      });
+  }, []);
+
   // Load characters for the Assets section
   const [characters, setCharacters] = useState<Character[]>([]);
   useEffect(() => {
@@ -120,6 +185,19 @@ function DashboardInner() {
     const onFocus = () => setCharacters(getCharacters());
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
+  }, []);
+
+  // Warn before closing if any flow has unsaved changes
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      const { flows } = useFlowStore.getState();
+      const hasUnsaved = Object.values(flows).some((f) => f.isDirty);
+      if (hasUnsaved) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
   }, []);
 
   // --- Connection validation ---
@@ -237,32 +315,18 @@ function DashboardInner() {
 
           {/* Provider selector */}
           <ProviderSelect
-            value={execution.providerId}
+            value={execution?.providerId ?? "mistral"}
             onChange={setProviderId}
-            disabled={execution.isRunning}
+            disabled={execution?.isRunning}
           />
-
-          {/* Run button */}
-          <button
-            onClick={runPipeline}
-            disabled={execution.isRunning}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {execution.isRunning ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <Play className="w-3 h-3" />
-            )}
-            {execution.isRunning ? "Running..." : "Run Pipeline"}
-          </button>
         </div>
       </header>
 
       {/* Global error banner */}
-      {execution.globalError && (
+      {execution?.globalError && (
         <div className="flex items-center gap-2 px-4 py-2 bg-red-950/60 border-b border-red-900/50 text-xs text-red-300">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-          <span>{execution.globalError}</span>
+          <span>{execution?.globalError}</span>
           <button
             onClick={() => useFlowStore.getState().resetExecution()}
             className="ml-auto p-0.5 hover:text-red-100 transition-colors"
@@ -271,6 +335,9 @@ function DashboardInner() {
           </button>
         </div>
       )}
+
+      {/* Tab bar */}
+      <TabBar />
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
@@ -383,12 +450,13 @@ function DashboardInner() {
         <div className="flex-1">
           <ReactFlow
             nodes={nodes}
-            edges={edges}
+            edges={animatedEdges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onDrop={onDrop}
             onDragOver={onDragOver}
+            onEdgeDoubleClick={onEdgeDoubleClick}
             onNodeDrag={onNodeDrag}
             onNodeDragStop={onNodeDragStop}
             nodeTypes={nodeTypes}
