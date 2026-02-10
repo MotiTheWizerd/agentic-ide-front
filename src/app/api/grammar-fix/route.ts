@@ -4,28 +4,25 @@ import { callClaudeText } from "@/lib/claude-code/api-adapter";
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, language, providerId = DEFAULT_PROVIDER, maxTokens } = await request.json();
+    const { text, style, providerId = DEFAULT_PROVIDER, maxTokens } = await request.json();
 
     if (!text) {
       return NextResponse.json({ error: "Text is required" }, { status: 400 });
     }
 
-    if (!language) {
-      return NextResponse.json(
-        { error: "Target language is required" },
-        { status: 400 }
-      );
-    }
+    const styleInstruction = style
+      ? ` Adjust the tone to be ${style}.`
+      : "";
 
-    const prompt = `Translate the following text to ${language}. Output ONLY the translation, nothing else. Do not add explanations, notes, or formatting.\n\n${text}`;
+    const prompt = `Fix all grammar, spelling, and punctuation errors in the following English text.${styleInstruction} Output ONLY the corrected text, nothing else. Do not add explanations, notes, or formatting.\n\n${text}`;
 
     // === Claude CLI provider ===
     if (providerId === "claude") {
-      const translation = await callClaudeText(prompt);
-      return NextResponse.json({ translation });
+      const fixed = await callClaudeText(prompt);
+      return NextResponse.json({ fixed });
     }
 
-    // === OpenAI-compatible providers (Mistral, GLM) ===
+    // === OpenAI-compatible providers (Mistral, GLM, OpenRouter) ===
     const provider = getProvider(providerId);
 
     const response = await provider.client.chat.completions.create({
@@ -36,12 +33,12 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({
-      translation: extractTextContent(response.choices[0]?.message?.content),
+      fixed: extractTextContent(response.choices[0]?.message?.content),
     });
   } catch (error: unknown) {
-    console.error("Translate API Error:", error);
+    console.error("Grammar Fix API Error:", error);
     const errorMessage =
-      error instanceof Error ? error.message : "Failed to translate";
+      error instanceof Error ? error.message : "Failed to fix grammar";
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

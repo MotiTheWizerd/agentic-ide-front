@@ -8,6 +8,7 @@ import { prepareImageForAPI } from "@/lib/image-utils";
 export function ImageDescriberNode({ id, data }: NodeProps) {
   const updateNodeData = useFlowStore((s) => s.updateNodeData);
   const status = useFlowStore((s) => s.execution.nodeStatus[id] || "idle");
+  const errorMessage = useFlowStore((s) => s.execution.nodeOutputs[id]?.error);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const image = (data.image as string) || "";
@@ -31,6 +32,7 @@ export function ImageDescriberNode({ id, data }: NodeProps) {
       color="ring-pink-500/30"
       hasInput={false}
       status={status}
+      errorMessage={errorMessage}
     >
       <div>
         <input

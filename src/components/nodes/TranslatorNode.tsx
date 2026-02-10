@@ -7,6 +7,7 @@ import { LanguageSelect } from "@/components/shared/LanguageSelect";
 export function TranslatorNode({ id, data }: NodeProps) {
   const updateNodeData = useFlowStore((s) => s.updateNodeData);
   const status = useFlowStore((s) => s.execution.nodeStatus[id] || "idle");
+  const errorMessage = useFlowStore((s) => s.execution.nodeOutputs[id]?.error);
   const language = (data.language as string) || "";
 
   return (
@@ -15,6 +16,7 @@ export function TranslatorNode({ id, data }: NodeProps) {
       icon={<Languages className="w-4 h-4 text-orange-400" />}
       color="ring-orange-500/30"
       status={status}
+      errorMessage={errorMessage}
     >
       <div className="space-y-2">
         <div className="text-[10px] text-gray-500">

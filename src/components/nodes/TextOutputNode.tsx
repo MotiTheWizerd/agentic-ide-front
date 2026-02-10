@@ -6,6 +6,7 @@ import { useFlowStore } from "@/store/flow-store";
 
 export function TextOutputNode({ id, data }: NodeProps) {
   const status = useFlowStore((s) => s.execution.nodeStatus[id] || "idle");
+  const errorMessage = useFlowStore((s) => s.execution.nodeOutputs[id]?.error);
   const text = (data.text as string) || "";
   const [copied, setCopied] = useState(false);
 
@@ -23,6 +24,7 @@ export function TextOutputNode({ id, data }: NodeProps) {
       color="ring-emerald-500/30"
       hasOutput={false}
       status={status}
+      errorMessage={errorMessage}
     >
       <div className="space-y-2">
         <div className="relative">

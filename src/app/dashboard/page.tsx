@@ -29,20 +29,45 @@ import {
   Box,
   Puzzle,
   BookOpen,
+  SpellCheck,
 } from "lucide-react";
 import { useFlowStore } from "@/store/flow-store";
 import { nodeTypes } from "@/components/nodes";
 import { getCharacters, type Character } from "@/lib/characters";
 import { ProviderSelect } from "@/components/shared/ProviderSelect";
 
-const sidebarNodes = [
-  { type: "group", label: "Group", icon: Group, color: "text-gray-400" },
-  { type: "initialPrompt", label: "Initial Prompt", icon: MessageSquareText, color: "text-cyan-400" },
-  { type: "promptEnhancer", label: "Prompt Enhancer", icon: Sparkles, color: "text-violet-400" },
-  { type: "translator", label: "Translator", icon: Languages, color: "text-orange-400" },
-  { type: "imageDescriber", label: "Image Describer", icon: ScanEye, color: "text-pink-400" },
-  { type: "storyTeller", label: "Story Teller", icon: BookOpen, color: "text-amber-400" },
-  { type: "textOutput", label: "Text Output", icon: FileText, color: "text-emerald-400" },
+type SidebarItem = { type: string; label: string; icon: React.ComponentType<{ className?: string }>; color: string };
+type SidebarGroup = { label: string; items: SidebarItem[] };
+
+const componentGroups: SidebarGroup[] = [
+  {
+    label: "Input",
+    items: [
+      { type: "initialPrompt", label: "Initial Prompt", icon: MessageSquareText, color: "text-cyan-400" },
+      { type: "imageDescriber", label: "Image Describer", icon: ScanEye, color: "text-pink-400" },
+    ],
+  },
+  {
+    label: "Processing",
+    items: [
+      { type: "promptEnhancer", label: "Prompt Enhancer", icon: Sparkles, color: "text-violet-400" },
+      { type: "storyTeller", label: "Story Teller", icon: BookOpen, color: "text-amber-400" },
+      { type: "translator", label: "Translator", icon: Languages, color: "text-orange-400" },
+      { type: "grammarFix", label: "Grammar Fix", icon: SpellCheck, color: "text-green-400" },
+    ],
+  },
+  {
+    label: "Output",
+    items: [
+      { type: "textOutput", label: "Text Output", icon: FileText, color: "text-emerald-400" },
+    ],
+  },
+  {
+    label: "Layout",
+    items: [
+      { type: "group", label: "Group", icon: Group, color: "text-gray-400" },
+    ],
+  },
 ];
 
 let nodeId = 100;
@@ -75,6 +100,14 @@ function DashboardInner() {
   // Sidebar collapse state
   const [assetsOpen, setAssetsOpen] = useState(true);
   const [componentsOpen, setComponentsOpen] = useState(true);
+  const [openSubs, setOpenSubs] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = { personas: true };
+    componentGroups.forEach((g) => { init[g.label] = true; });
+    return init;
+  });
+  const toggleSub = useCallback((key: string) => {
+    setOpenSubs((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
 
   // Load characters for the Assets section
   const [characters, setCharacters] = useState<Character[]>([]);
@@ -87,6 +120,16 @@ function DashboardInner() {
     const onFocus = () => setCharacters(getCharacters());
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
+  }, []);
+
+  // --- Connection validation ---
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isValidConnection = useCallback((connection: any) => {
+    const sourceHandle = connection.sourceHandle ?? "text-out";
+    const targetHandle = connection.targetHandle ?? "text-in";
+    const isAdapterSource = sourceHandle === "adapter-out";
+    const isAdapterTarget = (targetHandle as string).startsWith("adapter-");
+    return isAdapterSource === isAdapterTarget;
   }, []);
 
   // --- Sidebar drag-and-drop ---
@@ -244,33 +287,47 @@ function DashboardInner() {
           </button>
 
           {assetsOpen && (
-            <div className="flex flex-col gap-1.5 mb-2">
-              {characters.length === 0 ? (
-                <div className="px-3 py-3 text-[10px] text-gray-600 italic text-center">
-                  No characters yet.
-                  <br />
-                  Create them in Characters page.
-                </div>
-              ) : (
-                characters.map((char) => (
-                  <div
-                    key={char.id}
-                    draggable
-                    onDragStart={(e) => onDragStart(e, "consistentCharacter", char)}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-gray-800 bg-gray-900/50 hover:bg-gray-800/70 hover:border-amber-500/30 cursor-grab active:cursor-grabbing transition-colors"
-                  >
-                    <img
-                      src={char.imagePath}
-                      alt={char.name}
-                      className="w-7 h-7 rounded-md object-cover border border-gray-700 shrink-0"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] text-gray-300 font-medium truncate">{char.name}</div>
-                      <div className="text-[9px] text-gray-600 truncate">{char.description.slice(0, 40)}...</div>
+            <div className="flex flex-col gap-0.5 mb-2 pl-2">
+              {/* --- Personas sub-section --- */}
+              <button
+                onClick={() => toggleSub("personas")}
+                className="flex items-center gap-1 px-1 py-1 text-[9px] font-medium text-gray-500 uppercase tracking-wider hover:text-gray-400 transition-colors w-full"
+              >
+                {openSubs.personas ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronRight className="w-2.5 h-2.5" />}
+                <UserRound className="w-2.5 h-2.5" />
+                Personas
+              </button>
+
+              {openSubs.personas && (
+                <div className="flex flex-col gap-1.5 mb-1">
+                  {characters.length === 0 ? (
+                    <div className="px-3 py-3 text-[10px] text-gray-600 italic text-center">
+                      No characters yet.
+                      <br />
+                      Create them in Characters page.
                     </div>
-                    <UserRound className="w-3 h-3 text-amber-400/60 shrink-0" />
-                  </div>
-                ))
+                  ) : (
+                    characters.map((char) => (
+                      <div
+                        key={char.id}
+                        draggable
+                        onDragStart={(e) => onDragStart(e, "consistentCharacter", char)}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-gray-800 bg-gray-900/50 hover:bg-gray-800/70 hover:border-amber-500/30 cursor-grab active:cursor-grabbing transition-colors"
+                      >
+                        <img
+                          src={char.imagePath}
+                          alt={char.name}
+                          className="w-7 h-7 rounded-md object-cover border border-gray-700 shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11px] text-gray-300 font-medium truncate">{char.name}</div>
+                          <div className="text-[9px] text-gray-600 truncate">{char.description.slice(0, 40)}...</div>
+                        </div>
+                        <UserRound className="w-3 h-3 text-amber-400/60 shrink-0" />
+                      </div>
+                    ))
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -286,16 +343,32 @@ function DashboardInner() {
           </button>
 
           {componentsOpen && (
-            <div className="flex flex-col gap-1.5 mb-2">
-              {sidebarNodes.map((item) => (
-                <div
-                  key={item.type}
-                  draggable
-                  onDragStart={(e) => onDragStart(e, item.type)}
-                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-800 bg-gray-900/50 hover:bg-gray-800/70 hover:border-gray-700 cursor-grab active:cursor-grabbing transition-colors"
-                >
-                  <item.icon className={`w-4 h-4 ${item.color}`} />
-                  <span className="text-xs text-gray-300">{item.label}</span>
+            <div className="flex flex-col gap-0.5 mb-2 pl-2">
+              {componentGroups.map((group) => (
+                <div key={group.label}>
+                  <button
+                    onClick={() => toggleSub(group.label)}
+                    className="flex items-center gap-1 px-1 py-1 text-[9px] font-medium text-gray-500 uppercase tracking-wider hover:text-gray-400 transition-colors w-full"
+                  >
+                    {openSubs[group.label] ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronRight className="w-2.5 h-2.5" />}
+                    {group.label}
+                  </button>
+
+                  {openSubs[group.label] && (
+                    <div className="flex flex-col gap-1.5 mb-1">
+                      {group.items.map((item) => (
+                        <div
+                          key={item.type}
+                          draggable
+                          onDragStart={(e) => onDragStart(e, item.type)}
+                          className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-800 bg-gray-900/50 hover:bg-gray-800/70 hover:border-gray-700 cursor-grab active:cursor-grabbing transition-colors"
+                        >
+                          <item.icon className={`w-4 h-4 ${item.color}`} />
+                          <span className="text-xs text-gray-300">{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -319,7 +392,8 @@ function DashboardInner() {
             onNodeDrag={onNodeDrag}
             onNodeDragStop={onNodeDragStop}
             nodeTypes={nodeTypes}
-            fitView
+            isValidConnection={isValidConnection}
+            defaultViewport={{ x: 0, y: 0, zoom: 0.5 }}
             proOptions={{ hideAttribution: true }}
             defaultEdgeOptions={{ animated: true }}
             className="bg-gray-950"

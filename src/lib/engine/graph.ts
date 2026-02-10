@@ -44,7 +44,10 @@ export function buildExecutionPlan(
     sorted.push({
       nodeId,
       nodeType: node.type || "unknown",
-      inputNodeIds: getInputNodeIds(nodeId, edges).filter((id) =>
+      inputNodeIds: getTextInputNodeIds(nodeId, edges).filter((id) =>
+        nodeIds.has(id)
+      ),
+      adapterNodeIds: getAdapterInputNodeIds(nodeId, edges).filter((id) =>
         nodeIds.has(id)
       ),
     });
@@ -65,7 +68,27 @@ export function buildExecutionPlan(
   return sorted;
 }
 
-/** Get the IDs of nodes that feed into the given node. */
-export function getInputNodeIds(nodeId: string, edges: Edge[]): string[] {
-  return edges.filter((e) => e.target === nodeId).map((e) => e.source);
+/** Get the IDs of nodes that feed TEXT into the given node (non-adapter edges). */
+export function getTextInputNodeIds(nodeId: string, edges: Edge[]): string[] {
+  return edges
+    .filter(
+      (e) =>
+        e.target === nodeId &&
+        !(e.targetHandle || "").startsWith("adapter-")
+    )
+    .map((e) => e.source);
+}
+
+/** Get the IDs of ADAPTER nodes that attach to the given node (adapter-* target handles). */
+export function getAdapterInputNodeIds(
+  nodeId: string,
+  edges: Edge[]
+): string[] {
+  return edges
+    .filter(
+      (e) =>
+        e.target === nodeId &&
+        (e.targetHandle || "").startsWith("adapter-")
+    )
+    .map((e) => e.source);
 }

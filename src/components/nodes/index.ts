@@ -6,6 +6,7 @@ import { ImageDescriberNode } from "./ImageDescriberNode";
 import { TextOutputNode } from "./TextOutputNode";
 import { ConsistentCharacterNode } from "./ConsistentCharacterNode";
 import { StoryTellerNode } from "./StoryTellerNode";
+import { GrammarFixNode } from "./GrammarFixNode";
 
 export const nodeTypes = {
   initialPrompt: InitialPromptNode,
@@ -16,4 +17,5 @@ export const nodeTypes = {
   textOutput: TextOutputNode,
   consistentCharacter: ConsistentCharacterNode,
   storyTeller: StoryTellerNode,
+  grammarFix: GrammarFixNode,
 };

@@ -2,17 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProvider, DEFAULT_PROVIDER, extractTextContent } from "@/lib/providers";
 import { callClaudeText } from "@/lib/claude-code/api-adapter";
 
+interface PersonaEntry {
+  name: string;
+  description: string;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const {
-      personaDescription,
-      promptText,
-      providerId = DEFAULT_PROVIDER,
-    } = await request.json();
+    const body = await request.json();
+    const { promptText, providerId = DEFAULT_PROVIDER, maxTokens } = body;
 
-    if (!personaDescription) {
+    // Support both new multi-persona format and legacy single-persona format
+    let personas: PersonaEntry[];
+    if (body.personas && Array.isArray(body.personas)) {
+      personas = body.personas;
+    } else if (body.personaDescription) {
+      personas = [{ name: "Character", description: body.personaDescription }];
+    } else {
       return NextResponse.json(
-        { error: "Persona description is required" },
+        { error: "Personas or personaDescription is required" },
         { status: 400 }
       );
     }
@@ -24,25 +32,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const charactersBlock = personas
+      .map((p) => `### ${p.name}\n${p.description}`)
+      .join("\n\n");
+
     const prompt = `You are an expert prompt engineer specializing in AI image generation prompts.
 Your task is to inject specific character appearance details into an existing prompt.
 
-## CHARACTER APPEARANCE (use these physical traits):
-${personaDescription}
+## CHARACTERS (inject these physical traits by NAME):
+${charactersBlock}
 
 ## ORIGINAL PROMPT:
 ${promptText}
 
 ## YOUR TASK:
-Rewrite the original prompt so that any person, character, figure, woman, man, or human reference in it is replaced with the specific physical appearance described above. Follow these rules:
+Rewrite the original prompt so that each named character's physical appearance is injected where they are referenced. Follow these rules:
 
 1. KEEP everything from the original prompt: the scene, setting, clothing, pose, action, lighting, mood, composition, art style, and all non-character details.
-2. REPLACE any generic character description (e.g. "a woman", "a person", "a man", "a young girl") with the specific physical traits from the CHARACTER APPEARANCE section.
-3. If the original prompt already has some character details (e.g. "a blonde woman"), override them with the CHARACTER APPEARANCE traits — hair color, skin tone, age, build, etc.
-4. MERGE naturally — do not just prepend the appearance. Weave the physical traits into the sentence where the character is mentioned.
-5. If the original prompt has NO character/person reference at all, add the character naturally into the scene described.
-6. Do NOT add clothing from the CHARACTER APPEARANCE — only physical traits (hair, skin, face, build, age). The original prompt's clothing/outfit descriptions should be preserved.
-7. Use the appearance traits exactly as described — be precise and faithful to the original description.
+2. For each character name mentioned in the prompt, REPLACE or ENRICH the reference with the specific physical traits listed above for that character.
+3. If a character name appears in the prompt but no matching CHARACTER entry exists, leave that reference as-is.
+4. If the prompt has generic references like "a woman" or "a man" and there is only one character, replace the generic reference with that character's traits.
+5. MERGE naturally — weave the physical traits into the sentence where the character is mentioned.
+6. Do NOT add clothing from the CHARACTER descriptions — only physical traits (hair, skin, face, build, age). The original prompt's clothing/outfit descriptions should be preserved.
+7. Use the appearance traits exactly as described — be precise and faithful to each character's description.
+8. If the original prompt has NO character/person reference at all, add the characters naturally into the scene described.
 
 Output ONLY the rewritten prompt, nothing else.`;
 
@@ -52,24 +65,17 @@ Output ONLY the rewritten prompt, nothing else.`;
       return NextResponse.json({ injected });
     }
 
-    // === OpenAI-compatible providers (Mistral, GLM) ===
+    // === OpenAI-compatible providers (Mistral, GLM, OpenRouter) ===
     const provider = getProvider(providerId);
 
     const response = await provider.client.chat.completions.create({
       model: provider.textModel,
       stream: false,
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 2000,
+      max_tokens: maxTokens || 2000,
     });
 
     const injected = extractTextContent(response.choices[0]?.message?.content);
-    console.log("=== Inject-Persona ===");
-    console.log("Provider:", providerId);
-    console.log("Model:", provider.textModel);
-    console.log("Upstream text (first 100):", promptText?.substring(0, 100));
-    console.log("Injected result (first 100):", injected?.substring(0, 100));
-    console.log("Raw content type:", typeof response.choices[0]?.message?.content);
-    console.log("Raw content (first 100):", JSON.stringify(response.choices[0]?.message?.content)?.substring(0, 100));
 
     return NextResponse.json({ injected });
   } catch (error: unknown) {

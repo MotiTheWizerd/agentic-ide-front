@@ -93,7 +93,27 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   },
 
   onConnect: (connection) => {
-    set({ edges: addEdge({ ...connection, animated: true }, get().edges) });
+    const sourceHandle = connection.sourceHandle || "text-out";
+    const targetHandle = connection.targetHandle || "text-in";
+    const isAdapterSource = sourceHandle === "adapter-out";
+    const isAdapterTarget = targetHandle.startsWith("adapter-");
+
+    // Reject cross-type connections (adapter ↔ text)
+    if (isAdapterSource !== isAdapterTarget) return;
+
+    const isAdapterEdge = isAdapterSource;
+    set({
+      edges: addEdge(
+        {
+          ...connection,
+          animated: true,
+          ...(isAdapterEdge && {
+            style: { stroke: "#f59e0b", strokeWidth: 2, strokeDasharray: "5 3" },
+          }),
+        },
+        get().edges
+      ),
+    });
   },
 
   addNode: (node) => {
@@ -170,8 +190,12 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   runPipeline: async () => {
     const { nodes, edges, execution } = get();
 
-    // Reset previous run state
+    // Clear text from textOutput nodes + reset execution state
+    const clearedNodes = nodes.map((n) =>
+      n.type === "textOutput" ? { ...n, data: { ...n.data, text: "" } } : n
+    );
     set({
+      nodes: clearedNodes,
       execution: {
         ...execution,
         isRunning: true,

@@ -2,6 +2,7 @@ import type {
   NodeExecutor,
   ExecutorRegistry,
   NodeOutput,
+  PersonaInput,
 } from "./types";
 
 // Map language codes to full names for translation prompts
@@ -30,15 +31,54 @@ function mergeInputText(inputs: NodeOutput[]): string {
     .join("\n\n");
 }
 
+/** Extract persona data from adapter inputs (filters to those with personaDescription). */
+function extractPersonas(adapterInputs: NodeOutput[]): PersonaInput[] {
+  return adapterInputs
+    .filter((inp) => inp.personaDescription)
+    .map((inp) => ({
+      name: inp.personaName || "Character",
+      description: inp.personaDescription!,
+    }));
+}
+
+/** If personas are present, call /api/inject-persona to merge them into the text. */
+async function injectPersonasIfPresent(
+  text: string,
+  adapterInputs: NodeOutput[],
+  providerId: string,
+  maxTokens?: number
+): Promise<string> {
+  const personas = extractPersonas(adapterInputs);
+  if (personas.length === 0) return text;
+
+  const res = await fetch("/api/inject-persona", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      personas,
+      promptText: text,
+      providerId,
+      ...(maxTokens && { maxTokens }),
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Persona injection failed" }));
+    throw new Error(err.error || "Persona injection failed");
+  }
+
+  const { injected } = await res.json();
+  return injected;
+}
+
 /**
- * ConsistentCharacterNode: uses pre-saved character from the library.
- * - Text mode (incoming edge): cached persona description + upstream text → /api/inject-persona
- * - Persona mode (no edge): outputs the cached persona description as-is
+ * ConsistentCharacterNode: pure data source — outputs cached persona description.
+ * Connects via adapter handles (bottom → top) to prompt-generating nodes.
  */
 const consistentCharacter: NodeExecutor = async (ctx) => {
-  const { nodeData, inputs, providerId } = ctx;
+  const { nodeData } = ctx;
   const personaDescription = nodeData.characterDescription as string;
-  const upstreamText = mergeInputText(inputs);
+  const characterName = nodeData.characterName as string;
 
   if (!personaDescription) {
     return {
@@ -47,65 +87,38 @@ const consistentCharacter: NodeExecutor = async (ctx) => {
     };
   }
 
-  const start = Date.now();
-
-  // Text mode: inject persona into upstream text
-  if (upstreamText) {
-    const injectRes = await fetch("/api/inject-persona", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        personaDescription,
-        promptText: upstreamText,
-        providerId,
-      }),
-    });
-
-    if (!injectRes.ok) {
-      const err = await injectRes.json().catch(() => ({ error: "Inject request failed" }));
-      return {
-        success: false,
-        output: { personaDescription, error: err.error || "Persona injection failed" },
-      };
-    }
-
-    const { injected } = await injectRes.json();
-
-    return {
-      success: true,
-      output: {
-        text: injected,
-        personaDescription,
-        injectedPrompt: injected,
-        durationMs: Date.now() - start,
-      },
-    };
-  }
-
-  // Persona mode: pass through the cached description
   return {
     success: true,
     output: {
       text: personaDescription,
       personaDescription,
-      durationMs: Date.now() - start,
+      personaName: characterName || "Character",
     },
   };
 };
 
-/** InitialPromptNode: pass-through text from node data. */
+/** InitialPromptNode: pass-through text, with persona injection if adapters connected. */
 const initialPrompt: NodeExecutor = async (ctx) => {
   const text = (ctx.nodeData.text as string) || "";
+  const maxTokens = (ctx.nodeData.maxTokens as number) || undefined;
   if (!text.trim()) {
     return { success: false, output: { error: "No prompt text entered" } };
   }
-  return { success: true, output: { text } };
+
+  const start = Date.now();
+  const finalText = await injectPersonasIfPresent(text, ctx.adapterInputs, ctx.providerId, maxTokens);
+
+  return {
+    success: true,
+    output: { text: finalText, durationMs: Date.now() - start },
+  };
 };
 
 /** PromptEnhancerNode: enhances upstream text with additional notes via /api/enhance. */
 const promptEnhancer: NodeExecutor = async (ctx) => {
-  const { nodeData, inputs, providerId } = ctx;
+  const { nodeData, inputs, adapterInputs, providerId } = ctx;
   const notes = (nodeData.notes as string) || "";
+  const maxTokens = (nodeData.maxTokens as number) || undefined;
   const upstreamText = mergeInputText(inputs);
 
   if (!upstreamText) {
@@ -120,6 +133,7 @@ const promptEnhancer: NodeExecutor = async (ctx) => {
       text: upstreamText,
       notes: notes || undefined,
       providerId,
+      ...(maxTokens && { maxTokens }),
     }),
   });
 
@@ -129,13 +143,11 @@ const promptEnhancer: NodeExecutor = async (ctx) => {
   }
 
   const { enhanced } = await res.json();
+  const finalText = await injectPersonasIfPresent(enhanced, adapterInputs, providerId, maxTokens);
+
   return {
     success: true,
-    output: {
-      text: enhanced,
-      personaDescription: inputs[0]?.personaDescription,
-      durationMs: Date.now() - start,
-    },
+    output: { text: finalText, durationMs: Date.now() - start },
   };
 };
 
@@ -143,6 +155,7 @@ const promptEnhancer: NodeExecutor = async (ctx) => {
 const translator: NodeExecutor = async (ctx) => {
   const { nodeData, inputs, providerId } = ctx;
   const language = (nodeData.language as string) || "";
+  const maxTokens = (nodeData.maxTokens as number) || undefined;
   const upstreamText = mergeInputText(inputs);
 
   if (!upstreamText) {
@@ -164,6 +177,7 @@ const translator: NodeExecutor = async (ctx) => {
       text: upstreamText,
       language: languageName,
       providerId,
+      ...(maxTokens && { maxTokens }),
     }),
   });
 
@@ -219,9 +233,10 @@ const textOutput: NodeExecutor = async (ctx) => {
 
 /** StoryTellerNode: creative prompt generator — different output every time. */
 const storyTeller: NodeExecutor = async (ctx) => {
-  const { nodeData, inputs, providerId } = ctx;
+  const { nodeData, inputs, adapterInputs, providerId } = ctx;
   const idea = (nodeData.idea as string) || "";
   const tags = (nodeData.tags as string) || "";
+  const maxTokens = (nodeData.maxTokens as number) || undefined;
   const upstreamText = mergeInputText(inputs);
 
   const text = upstreamText || idea;
@@ -233,7 +248,7 @@ const storyTeller: NodeExecutor = async (ctx) => {
   const res = await fetch("/api/storyteller", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, tags: tags || undefined, providerId }),
+    body: JSON.stringify({ text, tags: tags || undefined, providerId, ...(maxTokens && { maxTokens }) }),
   });
 
   if (!res.ok) {
@@ -242,9 +257,46 @@ const storyTeller: NodeExecutor = async (ctx) => {
   }
 
   const { story } = await res.json();
+  const finalText = await injectPersonasIfPresent(story, adapterInputs, providerId, maxTokens);
+
   return {
     success: true,
-    output: { text: story, durationMs: Date.now() - start },
+    output: { text: finalText, durationMs: Date.now() - start },
+  };
+};
+
+/** GrammarFixNode: fixes grammar & typos in English text via /api/grammar-fix. */
+const grammarFix: NodeExecutor = async (ctx) => {
+  const { nodeData, inputs, providerId } = ctx;
+  const style = (nodeData.style as string) || "";
+  const maxTokens = (nodeData.maxTokens as number) || undefined;
+  const upstreamText = mergeInputText(inputs);
+
+  if (!upstreamText) {
+    return { success: false, output: { error: "No input text to fix" } };
+  }
+
+  const start = Date.now();
+  const res = await fetch("/api/grammar-fix", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: upstreamText,
+      style: style || undefined,
+      providerId,
+      ...(maxTokens && { maxTokens }),
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Grammar fix failed" }));
+    return { success: false, output: { error: err.error || "Grammar fix failed" } };
+  }
+
+  const { fixed } = await res.json();
+  return {
+    success: true,
+    output: { text: fixed, durationMs: Date.now() - start },
   };
 };
 
@@ -257,4 +309,5 @@ export const executorRegistry: ExecutorRegistry = {
   textOutput,
   consistentCharacter,
   storyTeller,
+  grammarFix,
 };

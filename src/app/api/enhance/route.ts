@@ -4,7 +4,7 @@ import { callClaudeText } from "@/lib/claude-code/api-adapter";
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, notes, providerId = DEFAULT_PROVIDER } = await request.json();
+    const { text, notes, providerId = DEFAULT_PROVIDER, maxTokens } = await request.json();
 
     if (!text) {
       return NextResponse.json({ error: "Text is required" }, { status: 400 });
@@ -46,7 +46,7 @@ Output ONLY the enhanced prompt, nothing else.`;
       model: provider.textModel,
       stream: false,
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 1500,
+      max_tokens: maxTokens || 1500,
     });
 
     return NextResponse.json({

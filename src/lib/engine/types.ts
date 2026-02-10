@@ -8,9 +8,15 @@ export type NodeExecutionStatus =
   | "error"
   | "skipped";
 
+export interface PersonaInput {
+  name: string;
+  description: string;
+}
+
 export interface NodeOutput {
   text?: string;
   personaDescription?: string;
+  personaName?: string;
   replacePrompt?: string;
   injectedPrompt?: string;
   error?: string;
@@ -20,6 +26,7 @@ export interface NodeOutput {
 export interface NodeExecutionContext {
   nodeData: Record<string, unknown>;
   inputs: NodeOutput[];
+  adapterInputs: NodeOutput[];
   providerId: string;
 }
 
@@ -38,6 +45,7 @@ export interface ExecutionStep {
   nodeId: string;
   nodeType: string;
   inputNodeIds: string[];
+  adapterNodeIds: string[];
 }
 
 export interface ExecutionState {

@@ -27,7 +27,7 @@ export async function executeGraph(
   }
 
   for (const step of plan) {
-    const { nodeId, nodeType, inputNodeIds } = step;
+    const { nodeId, nodeType, inputNodeIds, adapterNodeIds } = step;
 
     const executor = executorRegistry[nodeType];
     if (!executor) {
@@ -35,8 +35,9 @@ export async function executeGraph(
       continue;
     }
 
-    // Skip if any upstream node errored
-    const failedInput = inputNodeIds.find((id) => outputs[id]?.error);
+    // Skip if any upstream node (text or adapter) errored
+    const allUpstreamIds = [...inputNodeIds, ...adapterNodeIds];
+    const failedInput = allUpstreamIds.find((id) => outputs[id]?.error);
     if (failedInput) {
       const output: NodeOutput = { error: "Upstream node failed" };
       outputs[nodeId] = output;
@@ -44,8 +45,13 @@ export async function executeGraph(
       continue;
     }
 
-    // Gather inputs from upstream nodes
+    // Gather text inputs from upstream text nodes
     const inputs: NodeOutput[] = inputNodeIds
+      .map((id) => outputs[id])
+      .filter(Boolean);
+
+    // Gather adapter inputs from upstream adapter nodes
+    const adapterInputs: NodeOutput[] = adapterNodeIds
       .map((id) => outputs[id])
       .filter(Boolean);
 
@@ -58,6 +64,7 @@ export async function executeGraph(
       const result = await executor({
         nodeData: node.data as Record<string, unknown>,
         inputs,
+        adapterInputs,
         providerId,
       });
 

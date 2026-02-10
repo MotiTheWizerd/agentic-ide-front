@@ -1,9 +1,10 @@
 export { executeGraph } from "./runner";
-export { buildExecutionPlan, getInputNodeIds } from "./graph";
+export { buildExecutionPlan, getTextInputNodeIds, getAdapterInputNodeIds } from "./graph";
 export { executorRegistry } from "./executors";
 export type {
   NodeExecutionStatus,
   NodeOutput,
+  PersonaInput,
   NodeExecutionContext,
   NodeExecutionResult,
   NodeExecutor,
