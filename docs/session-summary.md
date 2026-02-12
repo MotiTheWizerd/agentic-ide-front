@@ -1,57 +1,45 @@
 # Session Summary
 
-## 1. StoryTeller Prompt Rework
+## 1. Canvas Help Panel
 
-Rewrote the `/api/storyteller` prompt from an image-prompt generator to an actual narrative storyteller.
+Added a help button (?) to the React Flow Controls bar (bottom-left) that opens a two-column popup with all canvas controls and shortcuts.
 
-**Before**: "You are a wildly creative art director and visual storyteller" — produced image generation prompts with lighting, composition, and art style directions.
+### Implementation
 
-**After**: "You are a wildly creative storyteller and wordsmith" — produces narrative passages focused on words, emotions, atmosphere, and character. Outputs clean markdown with headings, paragraph breaks, and italics (no bold).
+- Imported `ControlButton` from `@xyflow/react` and `HelpCircle` from Lucide
+- Added `ControlButton` as child of `<Controls>` with `!order-[-1]` CSS to position it at the top of the toolbar
+- Help popup (540px wide, 2-column grid) covers:
+  - **Navigation** — scroll zoom, click+drag pan, fit view
+  - **Selection** — click, Shift+Click multi-select, Shift+Drag box select, Delete to remove
+  - **Connections** — drag handles, double-click edge to remove
+  - **Keyboard Shortcuts** — undo/redo, tab management
+  - **Nodes** — drag from sidebar, play button, adapter handle
+- `Shortcut` helper component renders `<kbd>` + description rows
+- Toggle on/off via `showHelp` state; X button to close
 
-**Impact**: Downstream image generation improved significantly — the image generator receives richer narrative context instead of redundant visual directions, producing more creative and accurate results.
+### Note on Multi-Select
 
-**File**: `src/app/api/storyteller/route.ts`
+Multi-select was already built into @xyflow/react by default:
+- `Shift+Click` adds/removes nodes from selection
+- `Shift+Drag` draws a box selection (marquee) — `multiSelectionKeyCode` defaults to `"Shift"`
+- No code changes needed to enable this, just documented it in the help panel
+
+**Files**: `src/app/dashboard/page.tsx`
 
 ---
 
-## 2. Undo/Redo System (Per-Flow)
+## 2. Grammar Fix Prompt Hardening
 
-Implemented a full undo/redo system with per-flow history isolation.
+The Grammar Fix node was generating full stories instead of just fixing typos when a style (e.g., "Creative") was selected.
 
-### Architecture
+### Root Cause
 
-- **UndoManager** (`src/lib/undo-manager.ts`) — standalone singleton, zero React/Zustand deps
-  - Per-flow history stacks: `Map<string, { past: Snapshot[], future: Snapshot[] }>`
-  - Snapshot = `{ nodes, edges }` — only undoable state (excludes execution, UI transients)
-  - Max 50 entries per flow
-  - 500ms debounce for rapid changes (node drags, text typing) — "first snapshot wins"
-  - 50ms batch window for compound actions (node delete + connected edge cleanup = one undo step)
+The style instruction `Adjust the tone to be Creative.` was too vague — the LLM interpreted it as permission to rewrite and expand the entire text.
 
-### Store Integration (`src/store/flow-store.ts`)
+### Fix
 
-- New actions: `undo()`, `redo()` — blocked during execution (`isRunning` guard)
-- Snapshot capture in 7 mutation points:
-  - `onNodesChange` — debounced for position, immediate for remove, skips select/dimensions
-  - `onEdgesChange` — immediate for remove, debounced otherwise, skips select
-  - `onConnect` — immediate
-  - `addNode` — immediate
-  - `updateNodeData` — debounced, skipped during execution (runner pushes text to textOutput nodes)
-  - `setNodeParent` — immediate
-  - `removeNodeFromGroup` — immediate
-- Lifecycle hooks: `seedInitial` on create/load, `clear` on close
+- Added `"You are a proofreader"` role anchor to the prompt
+- Made style instruction explicit: "lightly adjust tone... do NOT expand, rewrite, or add new content"
+- Added guardrails: "Do NOT expand the text into a story or add new sentences. Preserve the original structure and length."
 
-### Keyboard Shortcuts (`src/components/TabBar.tsx`)
-
-- `Ctrl+Z` → undo
-- `Ctrl+Shift+Z` / `Ctrl+Y` → redo
-- Textarea/input guard: lets browser native undo handle text fields
-
-### Bug Fix — Batch Window
-
-Initial implementation created separate undo entries for node removal and connected edge cleanup (React Flow fires them as separate `onNodesChange` + `onEdgesChange` calls). Added a 50ms batch window so multiple immediate pushes within the same frame are grouped as one undo step.
-
-### Files Changed
-
-- `src/lib/undo-manager.ts` (new)
-- `src/store/flow-store.ts` (modified)
-- `src/components/TabBar.tsx` (modified)
+**File**: `src/app/api/grammar-fix/route.ts`

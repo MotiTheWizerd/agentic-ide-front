@@ -145,7 +145,7 @@ Nodes are the building blocks of a flow. Each node has typed input/output handle
 | **Prompt Enhancer**   | Enhances upstream text with optional notes. Supports persona injection via adapters.         |
 | **Story Teller**      | Creative narrative generator — produces vivid story passages from a concept + tags. Focuses on words, emotion, and character (not visual/image descriptions). Persona-aware. |
 | **Translator**        | Translates upstream text to a target language (26 languages supported).                      |
-| **Grammar Fix**       | Fixes grammar and typos in English text, with optional style guidance.                       |
+| **Grammar Fix**       | Proofreader — fixes grammar, spelling, and punctuation. Optional style tone adjustment without expanding or rewriting content. |
 | **Compressor**        | Compresses text over 2500 characters via AI summarization; passes shorter text through.      |
 | **Personas Replacer** | Analyzes a target image and replaces characters with connected personas. Vision-powered.     |
 
@@ -432,7 +432,9 @@ The typed event bus (`src/lib/event-bus.ts`) decouples the UI, persistence, and 
 - **Image Lightbox** — Click generated images for full-screen preview
 - **Copy to Clipboard** — TextOutput nodes have a one-click copy button
 - **Character Management** — Create and manage consistent character personas at `/dashboard/characters`
-- **MiniMap + Controls** — React Flow built-in minimap and zoom controls
+- **Multi-Select** — Shift+Click to add/remove nodes from selection; Shift+Drag for box (marquee) select
+- **MiniMap + Controls** — React Flow built-in minimap, zoom controls, and a help button (?) with an interactive shortcut reference popup
+- **Help Panel** — Click the ? button in the bottom-left controls to view all canvas controls, selection, connection, keyboard shortcuts, and node interaction instructions in a two-column popup
 - **Dark Theme** — Dark-first gradient theme with Geist font family
 
 ### Keyboard Shortcuts
@@ -445,6 +447,10 @@ The typed event bus (`src/lib/event-bus.ts`) decouples the UI, persistence, and 
 | Ctrl+W           | Close current tab                       |
 | Ctrl+Tab         | Next tab                                |
 | Ctrl+Shift+Tab   | Previous tab                            |
+| Shift+Click      | Add/remove node from selection          |
+| Shift+Drag       | Box select multiple nodes               |
+| Backspace/Delete | Remove selected nodes                   |
+| Double-click edge| Remove a connection                     |
 
 ---
 
