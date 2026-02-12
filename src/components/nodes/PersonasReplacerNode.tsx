@@ -14,6 +14,8 @@ export function PersonasReplacerNode({ id, data }: NodeProps) {
   const outputText = useFlowStore((s) => s.flows[s.activeFlowId]?.execution.nodeOutputs[id]?.text);
   const updateNodeInternals = useUpdateNodeInternals();
   const adapterCount = (data.adapterCount as number) || 1;
+  const userProviderId = data.providerId as string | undefined;
+  const userModel = data.model as string | undefined;
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const image = (data.image as string) || "";
@@ -48,8 +50,11 @@ export function PersonasReplacerNode({ id, data }: NodeProps) {
       </BaseNode>
       {settingsOpen && (
         <NodeSettingsPopover
-          adapterCount={adapterCount}
-          onAdapterCountChange={(count) => updateNodeData(id, { adapterCount: count })}
+          nodeType="personasReplacer"
+          providerId={userProviderId}
+          model={userModel}
+          onProviderChange={(pid) => updateNodeData(id, { providerId: pid })}
+          onModelChange={(m) => updateNodeData(id, { model: m || undefined })}
           onClose={() => setSettingsOpen(false)}
         />
       )}

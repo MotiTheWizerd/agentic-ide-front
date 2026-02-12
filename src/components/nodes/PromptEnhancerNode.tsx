@@ -14,7 +14,8 @@ export function PromptEnhancerNode({ id, data }: NodeProps) {
   const updateNodeInternals = useUpdateNodeInternals();
   const notes = (data.notes as string) || "";
   const adapterCount = (data.adapterCount as number) || 0;
-  const maxTokens = (data.maxTokens as number) || 1500;
+  const userProviderId = data.providerId as string | undefined;
+  const userModel = data.model as string | undefined;
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Tell React Flow to re-detect handles when adapter count changes
@@ -52,10 +53,11 @@ export function PromptEnhancerNode({ id, data }: NodeProps) {
       </BaseNode>
       {settingsOpen && (
         <NodeSettingsPopover
-          adapterCount={adapterCount}
-          onAdapterCountChange={(count) => updateNodeData(id, { adapterCount: count })}
-          maxTokens={maxTokens}
-          onMaxTokensChange={(tokens) => updateNodeData(id, { maxTokens: tokens })}
+          nodeType="promptEnhancer"
+          providerId={userProviderId}
+          model={userModel}
+          onProviderChange={(pid) => updateNodeData(id, { providerId: pid })}
+          onModelChange={(m) => updateNodeData(id, { model: m || undefined })}
           onClose={() => setSettingsOpen(false)}
         />
       )}

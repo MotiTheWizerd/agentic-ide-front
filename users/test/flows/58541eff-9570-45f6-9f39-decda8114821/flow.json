@@ -6,13 +6,14 @@
       "id": "initialPrompt-102",
       "type": "initialPrompt",
       "position": {
-        "x": -431.9714779991482,
-        "y": 330.7239694196068
+        "x": -569.386697236628,
+        "y": 331.26260098827777
       },
       "data": {
         "label": "initialPrompt",
-        "text": "man and woman, well deressed looking eachother, insanly inlove ",
-        "adapterCount": 2
+        "text": "Tupac, legendry rapper close up image, details skin,  capturing his thug life",
+        "adapterCount": 2,
+        "providerId": "claude"
       },
       "measured": {
         "width": 220,
@@ -25,8 +26,8 @@
       "id": "consistentCharacter-105",
       "type": "consistentCharacter",
       "position": {
-        "x": -61.89855072463747,
-        "y": 113.47463768115956
+        "x": -443.3942296563338,
+        "y": 27.28508825066303
       },
       "data": {
         "characterId": "16b5dd3c-b80d-454a-9b69-ec89f2ff1d16",
@@ -45,53 +46,70 @@
       "id": "storyTeller-113",
       "type": "storyTeller",
       "position": {
-        "x": 146.44987429192417,
-        "y": 284.9672640334082
+        "x": 157.8547243417804,
+        "y": 461.0934037596881
       },
       "data": {
-        "label": "storyTeller"
+        "label": "storyTeller",
+        "adapterCount": 1
       },
       "measured": {
         "width": 280,
-        "height": 303
+        "height": 179
       },
-      "selected": true,
+      "selected": false,
       "dragging": false
-    },
-    {
-      "id": "consistentCharacter-114",
-      "type": "consistentCharacter",
-      "position": {
-        "x": -215.73908553392167,
-        "y": 112.43794540200797
-      },
-      "data": {
-        "characterId": "87cfa4d5-79c8-4a58-8aa9-770be7fec944",
-        "characterName": "Model - 1",
-        "characterDescription": "**Ethnicity:** Caucasian\n**Age:** late 20s\n**Build:** petite, hourglass figure, slightly curvy, defined waist\n**Skin:** fair, smooth, glowing\n**Hair:** shoulder-length, wavy auburn, voluminous, darker roots\n**Eyes:** large, almond-shaped, deep hazel, double-lid, slightly upturned outer corners\n**Eyebrows:** full, natural arch, dark brown\n**Face shape:** oval, soft contours, high cheekbones, small rounded chin\n**Nose:** straight, refined, slightly rounded tip\n**Lips:** full, defined cupid's bow, lower lip slightly fuller\n**Distinguishing marks:** none visible\n**Body:** wearing an off-the-shoulder lace gown with floral patterns, visible cleavage, and a delicate necklace with a pendant.",
-        "characterImagePath": "/api/characters/87cfa4d5-79c8-4a58-8aa9-770be7fec944/image"
-      },
-      "measured": {
-        "width": 64,
-        "height": 73
-      }
     },
     {
       "id": "grammarFix-100",
       "type": "grammarFix",
       "position": {
-        "x": -167.54471424220566,
-        "y": 301.6287201524594
+        "x": -160.06645337264044,
+        "y": 464.6035195709589
       },
       "data": {
         "label": "grammarFix",
         "style": ""
       },
       "measured": {
-        "width": 280,
-        "height": 268
+        "width": 220,
+        "height": 144
       },
       "selected": false,
+      "dragging": false
+    },
+    {
+      "id": "compressor-115",
+      "type": "compressor",
+      "position": {
+        "x": 513.9218881740768,
+        "y": 428.59234068910393
+      },
+      "data": {
+        "label": "compressor"
+      },
+      "measured": {
+        "width": 220,
+        "height": 100
+      },
+      "selected": false,
+      "dragging": false
+    },
+    {
+      "id": "imageGenerator-117",
+      "type": "imageGenerator",
+      "position": {
+        "x": 668.3541335569573,
+        "y": -497.3372371337179
+      },
+      "data": {
+        "label": "imageGenerator"
+      },
+      "measured": {
+        "width": 280,
+        "height": 426
+      },
+      "selected": true,
       "dragging": false
     }
   ],
@@ -111,19 +129,6 @@
     },
     {
       "animated": true,
-      "source": "consistentCharacter-114",
-      "sourceHandle": "adapter-out",
-      "target": "initialPrompt-102",
-      "targetHandle": "adapter-1",
-      "style": {
-        "stroke": "#22c55e",
-        "strokeWidth": 2,
-        "strokeDasharray": "5 3"
-      },
-      "id": "xy-edge__consistentCharacter-114adapter-out-initialPrompt-102adapter-1"
-    },
-    {
-      "animated": true,
       "source": "initialPrompt-102",
       "sourceHandle": "text-out",
       "target": "grammarFix-100",
@@ -137,9 +142,25 @@
       "target": "storyTeller-113",
       "targetHandle": "text-in",
       "id": "xy-edge__grammarFix-100text-out-storyTeller-113text-in"
+    },
+    {
+      "animated": true,
+      "source": "storyTeller-113",
+      "sourceHandle": "text-out",
+      "target": "compressor-115",
+      "targetHandle": "text-in",
+      "id": "xy-edge__storyTeller-113text-out-compressor-115text-in"
+    },
+    {
+      "animated": true,
+      "source": "compressor-115",
+      "sourceHandle": "text-out",
+      "target": "imageGenerator-117",
+      "targetHandle": "text-in",
+      "id": "xy-edge__compressor-115text-out-imageGenerator-117text-in"
     }
   ],
   "providerId": "mistral",
-  "updatedAt": 1770896637946,
-  "createdAt": 1770896634130
+  "updatedAt": 1770932024825,
+  "createdAt": 1770932018751
 }

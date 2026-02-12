@@ -9,15 +9,39 @@ export interface Provider {
   client: OpenAI;
 }
 
+export interface ProviderModel {
+  id: string;
+  name: string;
+  supportsVision?: boolean;
+}
+
 // GLM available models
-export const glmModels = [
+export const glmModels: ProviderModel[] = [
   { id: "glm-4.7", name: "GLM-4.7", supportsVision: true },
   { id: "glm-4.7-flashx", name: "GLM-4.7-FlashX", supportsVision: true },
   { id: "glm-4.7-flash", name: "GLM-4.7-Flash", supportsVision: true },
 ];
 
+// Mistral available models
+const mistralModels: ProviderModel[] = [
+  { id: "ministral-14b-2512", name: "Ministral 14B" },
+  { id: "labs-mistral-small-creative", name: "Mistral Small Creative" },
+  { id: "pixtral-12b-2409", name: "Pixtral 12B", supportsVision: true },
+];
+
+// OpenRouter available models
+const openrouterModels: ProviderModel[] = [
+  { id: "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", name: "Dolphin Mistral 24B (free)" },
+];
+
+// HuggingFace available models
+const huggingfaceModels: ProviderModel[] = [
+  { id: "Qwen/Qwen2.5-72B-Instruct", name: "Qwen 2.5 72B" },
+  { id: "Qwen/Qwen2.5-VL-7B-Instruct", name: "Qwen 2.5 VL 7B", supportsVision: true },
+];
+
 // Provider configurations
-const providerConfigs: Record<string, Omit<Provider, "client"> & { baseURL: string; apiKeyEnv: string; models?: typeof glmModels }> = {
+const providerConfigs: Record<string, Omit<Provider, "client"> & { baseURL: string; apiKeyEnv: string; models?: ProviderModel[] }> = {
   mistral: {
     id: "mistral",
     name: "Mistral AI",
@@ -26,6 +50,7 @@ const providerConfigs: Record<string, Omit<Provider, "client"> & { baseURL: stri
     supportsVision: true,
     baseURL: "https://api.mistral.ai/v1",
     apiKeyEnv: "MISTRAL_API_KEY",
+    models: mistralModels,
   },
   glm: {
     id: "glm",
@@ -45,6 +70,7 @@ const providerConfigs: Record<string, Omit<Provider, "client"> & { baseURL: stri
     supportsVision: false,
     baseURL: "https://openrouter.ai/api/v1",
     apiKeyEnv: "OPENROUTER_API_KEY",
+    models: openrouterModels,
   },
   huggingface: {
     id: "huggingface",
@@ -54,6 +80,7 @@ const providerConfigs: Record<string, Omit<Provider, "client"> & { baseURL: stri
     supportsVision: true,
     baseURL: "https://router.huggingface.co/v1",
     apiKeyEnv: "HF_API_KEY",
+    models: huggingfaceModels,
   },
 };
 
@@ -92,7 +119,7 @@ const claudeProvider = {
   supportsVision: true,
 };
 
-export function getAvailableProviders(): Array<{ id: string; name: string; supportsVision: boolean; models?: typeof glmModels }> {
+export function getAvailableProviders(): Array<{ id: string; name: string; supportsVision: boolean; models?: ProviderModel[] }> {
   const openaiProviders = Object.values(providerConfigs).map(({ id, name, supportsVision, models }) => ({
     id,
     name,

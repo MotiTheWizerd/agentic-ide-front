@@ -2,27 +2,31 @@
 
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
-
-const MAX_ADAPTERS = 5;
-
-const TOKEN_PRESETS = [512, 1024, 1500, 2048, 4096];
+import { NODE_MODEL_DEFAULTS } from "@/lib/model-defaults";
+import { ProviderModelSelect } from "@/components/shared/ProviderModelSelect";
 
 interface NodeSettingsPopoverProps {
-  adapterCount: number;
-  onAdapterCountChange: (count: number) => void;
-  maxTokens?: number;
-  onMaxTokensChange?: (tokens: number) => void;
+  nodeType: string;
+  providerId?: string;
+  model?: string;
+  onProviderChange: (providerId: string) => void;
+  onModelChange: (model: string) => void;
   onClose: () => void;
 }
 
 export function NodeSettingsPopover({
-  adapterCount,
-  onAdapterCountChange,
-  maxTokens = 1500,
-  onMaxTokensChange,
+  nodeType,
+  providerId,
+  model,
+  onProviderChange,
+  onModelChange,
   onClose,
 }: NodeSettingsPopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
+
+  const defaults = NODE_MODEL_DEFAULTS[nodeType];
+  const activeProviderId = providerId || defaults?.providerId || "mistral";
+  const activeModel = model || defaults?.model || "";
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -44,13 +48,13 @@ export function NodeSettingsPopover({
   return (
     <div
       ref={ref}
-      className="nodrag nowheel absolute top-full left-0 mt-1 z-50 w-56 bg-gray-800 border border-gray-600 rounded-lg shadow-xl shadow-black/50 p-3"
+      className="nodrag nowheel absolute bottom-full left-0 mb-1 z-50 w-52 bg-gray-800 border border-gray-600 rounded-lg shadow-xl shadow-black/50 p-2.5"
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[11px] font-semibold text-gray-300 uppercase tracking-wide">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
           Settings
         </span>
         <button
@@ -61,64 +65,12 @@ export function NodeSettingsPopover({
         </button>
       </div>
 
-      <div className="space-y-3">
-        {/* Adapter Inputs */}
-        <div className="space-y-1.5">
-          <label className="text-[10px] text-gray-400 font-medium">
-            Adapter Inputs
-          </label>
-          <div className="flex gap-1">
-            {Array.from({ length: MAX_ADAPTERS + 1 }, (_, i) => (
-              <button
-                key={i}
-                onClick={() => onAdapterCountChange(i)}
-                className={`w-7 h-7 text-[11px] font-medium rounded-md border transition-colors ${
-                  adapterCount === i
-                    ? "bg-amber-500/20 border-amber-500/60 text-amber-400"
-                    : "bg-gray-700/50 border-gray-600 text-gray-400 hover:bg-gray-700 hover:text-gray-300"
-                }`}
-              >
-                {i}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Max Tokens */}
-        {onMaxTokensChange && (
-          <div className="space-y-1.5">
-            <label className="text-[10px] text-gray-400 font-medium">
-              Max Tokens
-            </label>
-            <div className="flex gap-1 flex-wrap">
-              {TOKEN_PRESETS.map((preset) => (
-                <button
-                  key={preset}
-                  onClick={() => onMaxTokensChange(preset)}
-                  className={`px-2 h-7 text-[10px] font-medium rounded-md border transition-colors ${
-                    maxTokens === preset
-                      ? "bg-blue-500/20 border-blue-500/60 text-blue-400"
-                      : "bg-gray-700/50 border-gray-600 text-gray-400 hover:bg-gray-700 hover:text-gray-300"
-                  }`}
-                >
-                  {preset >= 1000 ? `${(preset / 1000).toFixed(preset % 1000 === 0 ? 0 : 1)}k` : preset}
-                </button>
-              ))}
-            </div>
-            <input
-              type="number"
-              value={maxTokens}
-              onChange={(e) => {
-                const val = parseInt(e.target.value, 10);
-                if (val > 0) onMaxTokensChange(val);
-              }}
-              min={1}
-              max={16384}
-              className="w-full bg-gray-700/50 border border-gray-600 rounded-md px-2 py-1 text-[11px] text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-transparent"
-            />
-          </div>
-        )}
-      </div>
+      <ProviderModelSelect
+        providerId={activeProviderId}
+        model={activeModel}
+        onProviderChange={onProviderChange}
+        onModelChange={onModelChange}
+      />
     </div>
   );
 }

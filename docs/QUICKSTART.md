@@ -277,7 +277,8 @@ src/
 │   ├── shared/
 │   │   ├── ImageUpload.tsx                 # Reusable image upload (drag/paste/click)
 │   │   ├── LanguageSelect.tsx              # Language dropdown
-│   │   ├── ProviderSelect.tsx              # AI provider selector
+│   │   ├── ProviderSelect.tsx              # AI provider selector (global)
+│   │   ├── ProviderModelSelect.tsx        # Per-node provider + model combobox (shadcn Popover + Command)
 │   │   └── AppToaster.tsx                  # Sonner toaster (dark theme, bottom-right)
 │   ├── ui/                                 # Radix UI primitives (button, dialog, popover, command)
 │   ├── TabBar.tsx                          # Multi-flow tab bar
@@ -428,7 +429,7 @@ The typed event bus (`src/lib/event-bus.ts`) decouples the UI, persistence, and 
 - **Status Indicators** — Each node shows its execution state (pending → running spinner → green complete / red error)
 - **Toast Notifications** — Sonner-based themed toasts for pipeline completion, errors, and info
 - **Image Upload** — Drag & drop, Ctrl+V paste from clipboard, or click to pick files
-- **Provider Selection** — Global provider selector in the toolbar; per-node overrides planned
+- **Provider Selection** — Global provider selector in the toolbar; per-node provider + model override via settings popover (shadcn combobox dropdowns)
 - **Image Lightbox** — Click generated images for full-screen preview
 - **Copy to Clipboard** — TextOutput nodes have a one-click copy button
 - **Character Management** — Create and manage consistent character personas at `/dashboard/characters`
@@ -477,6 +478,11 @@ npm run test:claude
 Edit `src/lib/providers.ts`:
 
 ```typescript
+const yourModels: ProviderModel[] = [
+  { id: "model-name", name: "Model Display Name" },
+  { id: "vision-model", name: "Vision Model", supportsVision: true },
+];
+
 yourProvider: {
   id: "yourProvider",
   name: "Display Name",
@@ -485,6 +491,7 @@ yourProvider: {
   supportsVision: true,
   baseURL: "https://api.provider.com/v1",
   apiKeyEnv: "YOUR_API_KEY",
+  models: yourModels,  // Shown in per-node settings dropdown
 },
 ```
 
