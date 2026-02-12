@@ -22,6 +22,7 @@ export function GrammarFixNode({ id, data }: NodeProps) {
       icon={<SpellCheck className="w-4 h-4 text-green-400" />}
       color="ring-green-500/30"
       onTrigger={isTrigger ? () => runFromNode(id) : undefined}
+      usesLLM
       status={status}
       errorMessage={errorMessage}
       outputText={outputText}

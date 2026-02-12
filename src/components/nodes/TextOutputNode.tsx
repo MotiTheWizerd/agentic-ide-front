@@ -32,21 +32,18 @@ export function TextOutputNode({ id, data }: NodeProps) {
       onTrigger={isTrigger ? () => runFromNode(id) : undefined}
       status={status}
       errorMessage={errorMessage}
+      headerExtra={text ? (
+        <button
+          onClick={(e) => { e.stopPropagation(); handleCopy(); }}
+          className="p-1 text-gray-500 hover:text-emerald-400 transition-colors rounded"
+          title="Copy to clipboard"
+        >
+          {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+        </button>
+      ) : undefined}
     >
-      <div className="space-y-2">
-        <div className="relative">
-          <div className="w-full min-h-[80px] max-h-[160px] overflow-auto bg-gray-800/60 border border-gray-700 rounded-lg px-2.5 py-2 text-xs text-gray-300 whitespace-pre-wrap break-words">
-            {text || <span className="text-gray-600 italic">Waiting for output...</span>}
-          </div>
-          {text && (
-            <button
-              onClick={handleCopy}
-              className="absolute top-1.5 right-1.5 p-1 rounded-md bg-gray-900/80 border border-gray-700 text-gray-400 hover:text-emerald-400 transition-colors"
-            >
-              {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-            </button>
-          )}
-        </div>
+      <div className="w-full min-h-[80px] max-h-[160px] overflow-auto bg-gray-800/60 border border-gray-700 rounded-lg px-2.5 py-2 text-xs text-gray-300 whitespace-pre-wrap break-words">
+        {text || <span className="text-gray-600 italic">Waiting for output...</span>}
       </div>
     </BaseNode>
   );

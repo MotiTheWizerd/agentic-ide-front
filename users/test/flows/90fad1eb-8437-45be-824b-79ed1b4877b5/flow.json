@@ -1,0 +1,28 @@
+{
+  "id": "90fad1eb-8437-45be-824b-79ed1b4877b5",
+  "name": "Flow 2",
+  "nodes": [
+    {
+      "id": "initial-prompt-1",
+      "type": "initialPrompt",
+      "position": {
+        "x": 126.08695652173913,
+        "y": 229.56521739130434
+      },
+      "data": {
+        "label": "Initial Prompt",
+        "text": ""
+      },
+      "measured": {
+        "width": 220,
+        "height": 162
+      },
+      "selected": true,
+      "dragging": false
+    }
+  ],
+  "edges": [],
+  "providerId": "mistral",
+  "updatedAt": 1770880447273,
+  "createdAt": 1770880447273
+}

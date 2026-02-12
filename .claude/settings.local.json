@@ -11,7 +11,17 @@
       "Bash(npx next build:*)",
       "WebFetch(domain:openrouter.ai)",
       "Bash(npm ls:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(npx kill-port:*)",
+      "Bash(while read dir)",
+      "Bash(do rm -rf \"c:/projects/prompt-server/users/test/$dir\")",
+      "Bash(done)",
+      "Bash(for d in */)",
+      "Bash(do if [ \"$d\" != \"flows/\" ])",
+      "Bash(then rm -rf \"$d\")",
+      "Bash(fi)",
+      "Bash(git add:*)",
+      "Read(//c/**)"
     ]
   }
 }

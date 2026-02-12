@@ -23,6 +23,7 @@ export function TranslatorNode({ id, data }: NodeProps) {
       icon={<Languages className="w-4 h-4 text-orange-400" />}
       color="ring-orange-500/30"
       onTrigger={isTrigger ? () => runFromNode(id) : undefined}
+      usesLLM
       status={status}
       errorMessage={errorMessage}
       outputText={outputText}

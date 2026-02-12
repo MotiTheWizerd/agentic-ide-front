@@ -36,8 +36,10 @@ export function StoryTellerNode({ id, data }: NodeProps) {
         icon={<BookOpen className="w-4 h-4 text-amber-400" />}
         color="ring-amber-500/30"
         adapterCount={adapterCount}
+        onAdapterAdd={() => updateNodeData(id, { adapterCount: adapterCount + 1 })}
         onSettingsClick={() => setSettingsOpen(!settingsOpen)}
         onTrigger={isTrigger ? () => runFromNode(id) : undefined}
+        usesLLM
         status={status}
         errorMessage={errorMessage}
         outputText={outputText}

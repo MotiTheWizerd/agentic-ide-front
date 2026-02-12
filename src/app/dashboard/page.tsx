@@ -116,14 +116,18 @@ function DashboardInner() {
   } = useFlowStore();
   const { screenToFlowPosition, getIntersectingNodes } = useReactFlow();
 
-  // Animate edges while any node is running or pending
-  const isAnyRunning = useMemo(
-    () => Object.values(execution?.nodeStatus || {}).some((s) => s === "running" || s === "pending"),
-    [execution?.nodeStatus]
-  );
+  // Animate only edges connected to running/pending nodes
+  const nodeStatus = execution?.nodeStatus;
   const animatedEdges = useMemo(
-    () => edges.map((e) => ({ ...e, animated: isAnyRunning })),
-    [edges, isAnyRunning]
+    () => {
+      if (!nodeStatus) return edges;
+      return edges.map((e) => {
+        const srcStatus = nodeStatus[e.source];
+        const animated = srcStatus === "running";
+        return animated !== e.animated ? { ...e, animated } : e;
+      });
+    },
+    [edges, nodeStatus]
   );
 
   // Double-click an edge to disconnect it

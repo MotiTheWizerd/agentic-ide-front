@@ -20,6 +20,7 @@ export function CompressorNode({ id }: NodeProps) {
       icon={<Shrink className="w-4 h-4 text-teal-400" />}
       color="ring-teal-500/30"
       onTrigger={isTrigger ? () => runFromNode(id) : undefined}
+      usesLLM
       status={status}
       errorMessage={errorMessage}
       outputText={outputText}

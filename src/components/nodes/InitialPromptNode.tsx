@@ -35,6 +35,7 @@ export function InitialPromptNode({ id, data }: NodeProps) {
         color="ring-cyan-500/30"
         hasInput={false}
         adapterCount={adapterCount}
+        onAdapterAdd={() => updateNodeData(id, { adapterCount: adapterCount + 1 })}
         onSettingsClick={() => setSettingsOpen(!settingsOpen)}
         onTrigger={isTrigger ? () => runFromNode(id) : undefined}
         status={status}

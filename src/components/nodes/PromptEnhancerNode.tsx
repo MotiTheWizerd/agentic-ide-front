@@ -34,8 +34,10 @@ export function PromptEnhancerNode({ id, data }: NodeProps) {
         icon={<Sparkles className="w-4 h-4 text-violet-400" />}
         color="ring-violet-500/30"
         adapterCount={adapterCount}
+        onAdapterAdd={() => updateNodeData(id, { adapterCount: adapterCount + 1 })}
         onSettingsClick={() => setSettingsOpen(!settingsOpen)}
         onTrigger={isTrigger ? () => runFromNode(id) : undefined}
+        usesLLM
         status={status}
         errorMessage={errorMessage}
         outputText={outputText}

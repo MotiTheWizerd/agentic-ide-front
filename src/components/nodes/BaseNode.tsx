@@ -1,7 +1,9 @@
 import { Handle, Position } from "@xyflow/react";
-import { AlertTriangle, ChevronDown, ChevronRight, Copy, Check, Loader2, Play, Settings } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Copy, Check, Loader2, Play, Plus, Settings } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import type { NodeExecutionStatus } from "@/lib/engine/types";
+
+const MAX_ADAPTERS = 5;
 
 interface BaseNodeProps {
   title: string;
@@ -11,9 +13,12 @@ interface BaseNodeProps {
   hasInput?: boolean;
   hasOutput?: boolean;
   adapterCount?: number; // 0–5 top handles
+  onAdapterAdd?: () => void; // show ghost handle to add adapter
   hasAdapterOutput?: boolean; // bottom handle for adapter sources
   onSettingsClick?: () => void;
   onTrigger?: () => void; // show play button when provided (trigger source node)
+  usesLLM?: boolean; // show brain indicator for LLM-powered nodes
+  headerExtra?: ReactNode; // extra elements rendered in the header actions area
   status?: NodeExecutionStatus;
   errorMessage?: string;
   outputText?: string; // execution result preview
@@ -36,9 +41,12 @@ export function BaseNode({
   hasInput = true,
   hasOutput = true,
   adapterCount = 0,
+  onAdapterAdd,
   hasAdapterOutput = false,
   onSettingsClick,
   onTrigger,
+  usesLLM = false,
+  headerExtra,
   status = "idle",
   errorMessage,
   outputText,
@@ -51,19 +59,43 @@ export function BaseNode({
     <div
       className={`relative bg-gray-900 border border-gray-700 rounded-xl shadow-2xl shadow-black/40 min-w-[220px] max-w-[280px] ring-1 ${ringClass}`}
     >
-      {/* Adapter input handles (top) */}
-      {Array.from({ length: adapterCount }, (_, i) => (
-        <Handle
-          key={`adapter-${i}`}
-          type="target"
-          position={Position.Top}
-          id={`adapter-${i}`}
-          className="!w-3 !h-3 !bg-red-500 !border-2 !border-gray-900"
-          style={{
-            left: `${((i + 1) / (adapterCount + 1)) * 100}%`,
-          }}
-        />
-      ))}
+      {/* Adapter input handles (top) + ghost add button */}
+      {(() => {
+        const showGhost = onAdapterAdd && adapterCount < MAX_ADAPTERS;
+        const totalSlots = adapterCount + (showGhost ? 1 : 0);
+        const ghostIdx = 0;
+        return (
+          <>
+            {showGhost && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onAdapterAdd(); }}
+                onMouseDown={(e) => e.stopPropagation()}
+                className="nodrag absolute w-3.5 h-3.5 rounded-full border-2 border-dashed border-gray-500 bg-gray-800 flex items-center justify-center hover:border-red-400 hover:bg-gray-700 transition-colors z-10 cursor-pointer"
+                style={{
+                  top: -7,
+                  left: `${((ghostIdx + 1) / (totalSlots + 1)) * 100}%`,
+                  transform: "translateX(-50%)",
+                }}
+                title="Add character input"
+              >
+                <Plus className="w-2 h-2 text-gray-500" />
+              </button>
+            )}
+            {Array.from({ length: adapterCount }, (_, i) => (
+              <Handle
+                key={`adapter-${i}`}
+                type="target"
+                position={Position.Top}
+                id={`adapter-${i}`}
+                className="!w-3 !h-3 !bg-red-500 !border-2 !border-gray-900"
+                style={{
+                  left: `${(((showGhost ? i + 2 : i + 1)) / (totalSlots + 1)) * 100}%`,
+                }}
+              />
+            ))}
+          </>
+        );
+      })()}
 
       {/* Text input handle (left) */}
       {hasInput && (
@@ -105,6 +137,10 @@ export function BaseNode({
               <Settings className="w-3 h-3" />
             </button>
           )}
+          {usesLLM && (
+            <span className="text-[10px] leading-none" title="Uses LLM">🧠</span>
+          )}
+          {headerExtra}
           {status === "running" && (
             <Loader2 className="w-3 h-3 text-blue-400 animate-spin" />
           )}
