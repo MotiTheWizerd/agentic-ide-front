@@ -24,7 +24,10 @@
       "Read(//c/**)",
       "Bash(npm i:*)",
       "Bash(pnpm add:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(ls -la \"c:\\\\Users\\\\מחשב\\\\Documents\\\\projects\\\\agentic-ide\"\" 2>/dev/null || echo \"Cannot list \")",
+      "Bash(git log:*)",
+      "Bash(dir:*)"
     ]
   }
 }

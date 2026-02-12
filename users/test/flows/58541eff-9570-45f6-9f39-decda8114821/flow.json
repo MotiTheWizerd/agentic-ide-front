@@ -6,8 +6,8 @@
       "id": "initialPrompt-102",
       "type": "initialPrompt",
       "position": {
-        "x": -569.386697236628,
-        "y": 331.26260098827777
+        "x": -407.38669723662804,
+        "y": 173.26260098827777
       },
       "data": {
         "label": "initialPrompt",
@@ -46,8 +46,8 @@
       "id": "storyTeller-113",
       "type": "storyTeller",
       "position": {
-        "x": 157.8547243417804,
-        "y": 461.0934037596881
+        "x": 219.8547243417804,
+        "y": 63.0934037596881
       },
       "data": {
         "label": "storyTeller",
@@ -64,8 +64,8 @@
       "id": "grammarFix-100",
       "type": "grammarFix",
       "position": {
-        "x": -160.06645337264044,
-        "y": 464.6035195709589
+        "x": -66.06645337264044,
+        "y": 164.6035195709589
       },
       "data": {
         "label": "grammarFix",
@@ -75,15 +75,15 @@
         "width": 220,
         "height": 144
       },
-      "selected": false,
+      "selected": true,
       "dragging": false
     },
     {
       "id": "compressor-115",
       "type": "compressor",
       "position": {
-        "x": 624.7605526789998,
-        "y": 505.1237995139317
+        "x": 626.7605526789998,
+        "y": 174.62379951393171
       },
       "data": {
         "label": "compressor"
@@ -93,25 +93,6 @@
         "height": 100
       },
       "selected": false,
-      "dragging": false
-    },
-    {
-      "id": "imageGenerator-117",
-      "type": "imageGenerator",
-      "position": {
-        "x": 1072.8221816984849,
-        "y": 294.66235378390337
-      },
-      "data": {
-        "label": "imageGenerator",
-        "providerId": "huggingface",
-        "model": "zai-org/GLM-Image"
-      },
-      "measured": {
-        "width": 280,
-        "height": 153
-      },
-      "selected": true,
       "dragging": false
     }
   ],
@@ -152,17 +133,9 @@
       "target": "compressor-115",
       "targetHandle": "text-in",
       "id": "xy-edge__storyTeller-113text-out-compressor-115text-in"
-    },
-    {
-      "animated": true,
-      "source": "compressor-115",
-      "sourceHandle": "text-out",
-      "target": "imageGenerator-117",
-      "targetHandle": "text-in",
-      "id": "xy-edge__compressor-115text-out-imageGenerator-117text-in"
     }
   ],
   "providerId": "mistral",
-  "updatedAt": 1770934599299,
-  "createdAt": 1770934594594
+  "updatedAt": 1770937245257,
+  "createdAt": 1770936711816
 }
