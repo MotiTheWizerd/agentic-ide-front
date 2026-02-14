@@ -1,7 +1,7 @@
-// Manager (entry point)
-export { graphManager } from "./GraphManager";
+// Manager class (for DI registration)
+export { GraphManager } from "./GraphManager";
 
-// Standalone functions (backward compat)
+// Standalone functions (used directly by flow-store and runner)
 export { buildExecutionPlan } from "./topological-sort";
 export { getTextInputNodeIds, getAdapterInputNodeIds } from "./edge-classification";
 export { getUpstreamNodes, getDownstreamNodes } from "./traversal";

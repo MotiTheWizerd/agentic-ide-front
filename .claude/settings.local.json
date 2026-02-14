@@ -37,7 +37,9 @@
       "Bash(pnpm lint:*)",
       "Bash(git rm:*)",
       "Bash(cat:*)",
-      "Bash(pnpm build:*)"
+      "Bash(pnpm build:*)",
+      "Bash(curl:*)",
+      "Bash(python -m json.tool:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\מחשב\\Documents\\projects\\agentic-ide\\agentic-ide-front"

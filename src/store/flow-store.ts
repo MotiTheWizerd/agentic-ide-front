@@ -16,7 +16,7 @@ import type {
 } from "@/modules/image-gen-editor";
 import { executeGraph } from "@/modules/image-gen-editor/engine/runner";
 import { getDownstreamNodes, getUpstreamNodes } from "@/modules/image-gen-editor/engine/graph";
-import { eventBus } from "@/modules/image-gen-editor";
+import { emitEditorEvent } from "@/modules/image-gen-editor";
 import { toastSuccess, toastError } from "@/lib/toast";
 import { undoManager, type Snapshot } from "@/modules/image-gen-editor";
 import type { FlowData } from "./types";
@@ -37,14 +37,7 @@ function createDefaultFlow(id: string, name: string): FlowData {
   return {
     id,
     name,
-    nodes: [
-      {
-        id: "initial-prompt-1",
-        type: "initialPrompt",
-        position: { x: 300, y: 200 },
-        data: { label: "Initial Prompt", text: "" },
-      },
-    ],
+    nodes: [],
     edges: [],
     hoveredGroupId: null,
     execution: { ...initialExecution },
@@ -113,6 +106,8 @@ interface FlowStoreState {
   onConnect: OnConnect;
   addNode: (node: Node) => void;
   updateNodeData: (nodeId: string, data: Partial<NodeData>) => void;
+  removeAdapter: (nodeId: string, adapterIndex: number) => void;
+  connectToGhostAdapter: (sourceNodeId: string, sourceHandle: string, targetNodeId: string) => void;
   setNodeParent: (nodeId: string, parentId: string) => void;
   removeNodeFromGroup: (nodeId: string) => void;
   setHoveredGroupId: (id: string | null) => void;
@@ -131,6 +126,7 @@ interface FlowStoreState {
   getFlowData: (flowId: string) => FlowData | undefined;
   loadFlowData: (flowData: FlowData) => void;
   markClean: (flowId: string) => void;
+  clearAllFlows: () => void;
 
   // Undo / Redo
   undo: () => void;
@@ -169,7 +165,7 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
         isDirty: true,
       }),
     });
-    eventBus.emit("flow:dirty", { flowId: activeFlowId });
+    emitEditorEvent("flow:dirty", { flowId: activeFlowId });
   },
 
   redo: () => {
@@ -187,7 +183,7 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
         isDirty: true,
       }),
     });
-    eventBus.emit("flow:dirty", { flowId: activeFlowId });
+    emitEditorEvent("flow:dirty", { flowId: activeFlowId });
   },
 
   // --- Active flow graph actions ---
@@ -216,7 +212,7 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
         isDirty: true,
       }),
     });
-    eventBus.emit("flow:dirty", { flowId: activeFlowId });
+    emitEditorEvent("flow:dirty", { flowId: activeFlowId });
   },
 
   onEdgesChange: (changes) => {
@@ -234,13 +230,61 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
       }
     }
 
+    // Detect adapter edge removals → also clean up adapter handles
+    const adapterRemovals: { nodeId: string; adapterIndex: number }[] = [];
+    for (const change of changes) {
+      if (change.type !== "remove") continue;
+      const edge = flow.edges.find((e) => e.id === change.id);
+      if (!edge) continue;
+      const match = edge.targetHandle?.match(/^adapter-(\d+)$/);
+      if (match) {
+        adapterRemovals.push({ nodeId: edge.target, adapterIndex: Number(match[1]) });
+      }
+    }
+
+    let newEdges = applyEdgeChanges(changes, flow.edges);
+    let newNodes = flow.nodes;
+
+    if (adapterRemovals.length > 0) {
+      // Group by node, sort indices descending to avoid re-index conflicts
+      const byNode = new Map<string, number[]>();
+      for (const { nodeId, adapterIndex } of adapterRemovals) {
+        const arr = byNode.get(nodeId) || [];
+        arr.push(adapterIndex);
+        byNode.set(nodeId, arr);
+      }
+
+      for (const [nodeId, indices] of byNode) {
+        const sorted = indices.sort((a, b) => b - a);
+        const count = (flow.nodes.find((n) => n.id === nodeId)?.data.adapterCount as number) || 0;
+        let newCount = count;
+
+        for (const idx of sorted) {
+          newEdges = newEdges.map((e) => {
+            if (e.target !== nodeId) return e;
+            const m = e.targetHandle?.match(/^adapter-(\d+)$/);
+            if (!m) return e;
+            const eIdx = Number(m[1]);
+            if (eIdx <= idx) return e;
+            return { ...e, targetHandle: `adapter-${eIdx - 1}` };
+          });
+          newCount--;
+        }
+
+        newNodes = newNodes.map((n) =>
+          n.id === nodeId ? { ...n, data: { ...n.data, adapterCount: Math.max(0, newCount) } } : n
+        );
+      }
+    }
+
     set({
       flows: patchFlow(flows, activeFlowId, {
-        edges: applyEdgeChanges(changes, flow.edges),
+        edges: newEdges,
+        nodes: newNodes,
         isDirty: true,
       }),
     });
-    eventBus.emit("flow:dirty", { flowId: activeFlowId });
+    emitEditorEvent("flow:dirty", { flowId: activeFlowId });
   },
 
   onConnect: (connection) => {
@@ -278,7 +322,7 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
         isDirty: true,
       }),
     });
-    eventBus.emit("flow:dirty", { flowId: activeFlowId });
+    emitEditorEvent("flow:dirty", { flowId: activeFlowId });
   },
 
   addNode: (node) => {
@@ -292,7 +336,7 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
         isDirty: true,
       }),
     });
-    eventBus.emit("flow:dirty", { flowId: activeFlowId });
+    emitEditorEvent("flow:dirty", { flowId: activeFlowId });
   },
 
   updateNodeData: (nodeId, data) => {
@@ -310,7 +354,76 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
         isDirty: true,
       }),
     });
-    eventBus.emit("flow:dirty", { flowId: activeFlowId });
+    emitEditorEvent("flow:dirty", { flowId: activeFlowId });
+  },
+
+  removeAdapter: (nodeId, adapterIndex) => {
+    const { activeFlowId, flows } = get();
+    const flow = flows[activeFlowId];
+    if (!flow) return;
+
+    undoManager.pushSnapshot(activeFlowId, takeSnapshot(flow), false);
+
+    const handleId = `adapter-${adapterIndex}`;
+    const adapterCount = (flow.nodes.find((n) => n.id === nodeId)?.data.adapterCount as number) || 0;
+    if (adapterIndex >= adapterCount) return;
+
+    // Remove edges targeting this adapter handle, re-index higher adapters
+    const updatedEdges = flow.edges
+      .filter((e) => !(e.target === nodeId && e.targetHandle === handleId))
+      .map((e) => {
+        if (e.target !== nodeId) return e;
+        const match = e.targetHandle?.match(/^adapter-(\d+)$/);
+        if (!match) return e;
+        const idx = Number(match[1]);
+        if (idx <= adapterIndex) return e;
+        return { ...e, targetHandle: `adapter-${idx - 1}` };
+      });
+
+    set({
+      flows: patchFlow(flows, activeFlowId, {
+        nodes: flow.nodes.map((n) =>
+          n.id === nodeId ? { ...n, data: { ...n.data, adapterCount: adapterCount - 1 } } : n
+        ),
+        edges: updatedEdges,
+        isDirty: true,
+      }),
+    });
+    emitEditorEvent("flow:dirty", { flowId: activeFlowId });
+  },
+
+  connectToGhostAdapter: (sourceNodeId, sourceHandle, targetNodeId) => {
+    const { activeFlowId, flows } = get();
+    const flow = flows[activeFlowId];
+    if (!flow) return;
+
+    const targetNode = flow.nodes.find((n) => n.id === targetNodeId);
+    const currentCount = (targetNode?.data.adapterCount as number) || 0;
+
+    undoManager.pushSnapshot(activeFlowId, takeSnapshot(flow), false);
+
+    set({
+      flows: patchFlow(flows, activeFlowId, {
+        nodes: flow.nodes.map((n) =>
+          n.id === targetNodeId
+            ? { ...n, data: { ...n.data, adapterCount: currentCount + 1 } }
+            : n
+        ),
+        edges: addEdge(
+          {
+            source: sourceNodeId,
+            target: targetNodeId,
+            sourceHandle,
+            targetHandle: `adapter-${currentCount}`,
+            animated: true,
+            style: { stroke: "#22c55e", strokeWidth: 2, strokeDasharray: "5 3" },
+          },
+          flow.edges
+        ),
+        isDirty: true,
+      }),
+    });
+    emitEditorEvent("flow:dirty", { flowId: activeFlowId });
   },
 
   setNodeParent: (nodeId, parentId) => {
@@ -346,7 +459,7 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
         isDirty: true,
       }),
     });
-    eventBus.emit("flow:dirty", { flowId: activeFlowId });
+    emitEditorEvent("flow:dirty", { flowId: activeFlowId });
   },
 
   setHoveredGroupId: (id) => {
@@ -391,7 +504,7 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
         isDirty: true,
       }),
     });
-    eventBus.emit("flow:dirty", { flowId: activeFlowId });
+    emitEditorEvent("flow:dirty", { flowId: activeFlowId });
   },
 
   // --- Execution ---
@@ -471,7 +584,7 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
       }),
     });
 
-    eventBus.emit("execution:started", { flowId });
+    emitEditorEvent("execution:started", { flowId });
 
     // Filter to downstream nodes only, but pass ALL edges
     // so the runner can resolve upstream references via cachedOutputs
@@ -518,7 +631,7 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
         }),
       });
 
-      eventBus.emit("execution:node-status", {
+      emitEditorEvent("execution:node-status", {
         flowId,
         nodeId,
         status,
@@ -534,7 +647,7 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
         onStatus,
         preservedOutputs
       );
-      eventBus.emit("execution:completed", { flowId });
+      emitEditorEvent("execution:completed", { flowId });
       toastSuccess("Pipeline completed");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Execution failed";
@@ -546,7 +659,7 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
           }),
         });
       }
-      eventBus.emit("execution:error", { flowId, error: msg });
+      emitEditorEvent("execution:error", { flowId, error: msg });
     } finally {
       const currentFlow = get().flows[flowId];
       if (currentFlow) {
@@ -571,24 +684,25 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
       activeFlowId: id,
     }));
     undoManager.seedInitial(id, takeSnapshot(flow));
-    eventBus.emit("flow:created", { flowId: id, name: flowName });
+    emitEditorEvent("flow:created", { flowId: id, name: flowName });
     return id;
   },
 
   closeFlow: (flowId: string) => {
     const state = get();
-    if (state.flowIds.length <= 1) return; // never close the last tab
-
     const newFlowIds = state.flowIds.filter((id) => id !== flowId);
     const newFlows = { ...state.flows };
     delete newFlows[flowId];
 
-    // If closing the active tab, switch to the nearest one
+    // If closing the active tab, switch to the nearest one (or empty)
     let newActiveId = state.activeFlowId;
     if (flowId === state.activeFlowId) {
-      const closedIndex = state.flowIds.indexOf(flowId);
-      newActiveId =
-        newFlowIds[Math.min(closedIndex, newFlowIds.length - 1)];
+      if (newFlowIds.length > 0) {
+        const closedIndex = state.flowIds.indexOf(flowId);
+        newActiveId = newFlowIds[Math.min(closedIndex, newFlowIds.length - 1)];
+      } else {
+        newActiveId = "";
+      }
     }
 
     set({
@@ -597,13 +711,13 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
       activeFlowId: newActiveId,
     });
     undoManager.clear(flowId);
-    eventBus.emit("flow:closed", { flowId });
+    emitEditorEvent("flow:closed", { flowId });
   },
 
   switchFlow: (flowId: string) => {
     if (get().flows[flowId]) {
       set({ activeFlowId: flowId });
-      eventBus.emit("flow:switched", { flowId });
+      emitEditorEvent("flow:switched", { flowId });
     }
   },
 
@@ -613,7 +727,7 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
     set({
       flows: patchFlow(get().flows, flowId, { name, isDirty: true }),
     });
-    eventBus.emit("flow:renamed", { flowId, name });
+    emitEditorEvent("flow:renamed", { flowId, name });
   },
 
   // --- Persistence helpers ---
@@ -647,7 +761,7 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
       ...(isFirstFlow && { activeFlowId: cleanedData.id }),
     });
     undoManager.seedInitial(cleanedData.id, takeSnapshot(cleanedData));
-    eventBus.emit("flow:switched", { flowId: cleanedData.id });
+    emitEditorEvent("flow:switched", { flowId: cleanedData.id });
   },
 
   markClean: (flowId: string) => {
@@ -657,5 +771,13 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
         lastSavedAt: Date.now(),
       }),
     });
+  },
+
+  clearAllFlows: () => {
+    const { flowIds } = get();
+    for (const id of flowIds) {
+      undoManager.clear(id);
+    }
+    set({ activeFlowId: "", flowIds: [], flows: {} });
   },
 }));

@@ -6,20 +6,24 @@
  */
 
 // ---- Manager (entry point) ----
-export { imageGenEditor, useImageGenEditorStore } from "./editor-manager";
-export type { EditorStatus, ProjectOption } from "./editor-manager";
+export { ImageGenEditorManager, imageGenEditor, useImageGenEditorStore, setEditorManagerInstance } from "./editor-manager";
+export { ProjectService, ComponentService, FlowLoader, NodeIdService } from "./editor-manager";
+export type { EditorStatus, ProjectOption, ComponentItem, ComponentGroup } from "./editor-manager";
 
 // ---- Logger ----
 import { Logger } from "@/modules/core";
 export const logger = new Logger("gen-editor");
 
 // ---- Event Bus ----
-export { eventBus } from "./event-bus";
-export type { EventMap } from "./event-bus";
+export { eventBus, getEventBus, setEventBusInstance, emitEditorEvent } from "./event-bus";
+export type { EventMap, EditorEventBus } from "./event-bus";
+
+// ---- Event Wiring (single source of truth for subscriptions) ----
+export { wireEditorEvents, teardownEditorEvents } from "./event-wiring";
 
 // ---- Subsystems ----
-export { autoSaveManager } from "./auto-save";
-export { undoManager } from "./undo-manager";
+export { AutoSaveManager } from "./auto-save";
+export { UndoManager, undoManager, setUndoManagerInstance } from "./undo-manager";
 export type { Snapshot } from "./undo-manager";
 
 // ---- Model & Scene ----
@@ -37,6 +41,7 @@ export type { Character } from "./characters";
 
 // ---- Execution Engine ----
 export { executeGraph } from "./engine";
+export { GraphManager, ExecutorManager, setExecutorManagerInstance } from "./engine";
 export { buildExecutionPlan, getTextInputNodeIds, getAdapterInputNodeIds } from "./engine";
 export { executorRegistry } from "./engine";
 export type {

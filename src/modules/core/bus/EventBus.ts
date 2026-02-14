@@ -7,10 +7,17 @@
  * The bus itself has zero domain knowledge — it's pure infrastructure.
  */
 
+import { Logger } from "../logger/Logger";
+
 type Listener<T> = (payload: T) => void;
 
 export class EventBus<TEventMap extends Record<string, unknown>> {
   private listeners = new Map<string, Set<Listener<unknown>>>();
+  private log: Logger;
+
+  constructor(name = "event-bus") {
+    this.log = new Logger(name);
+  }
 
   on<K extends keyof TEventMap & string>(
     event: K,
@@ -27,6 +34,7 @@ export class EventBus<TEventMap extends Record<string, unknown>> {
   }
 
   emit<K extends keyof TEventMap & string>(event: K, payload: TEventMap[K]): void {
+    this.log.info(event, payload);
     const set = this.listeners.get(event);
     if (set) {
       for (const listener of set) {

@@ -1,1 +1,1 @@
-export { autoSaveManager } from "./AutoSaveManager";
+export { AutoSaveManager } from "./AutoSaveManager";

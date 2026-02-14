@@ -1,143 +1,105 @@
-# Session Summary — 2026-02-14 (Session 5)
+# Session Summary — 2026-02-14 (Session 11)
 
-## Theme: Backoffice Admin Area
+## Theme: Adapter Handle UX + Character Lock-Follow + Ghost Auto-Connect
 
-Built the complete backoffice section — login page, isolated auth, protected dashboard layout with sidebar, and a creative dashboard page with mock data.
-
----
-
-## 1. Backoffice Auth (Isolated from Main App)
-
-### New File: `src/lib/backoffice-auth.ts`
-
-Mirrors `src/lib/auth.ts` with separate localStorage keys so admin and user sessions are fully independent.
-
-| Function | Key | Purpose |
-| -------- | --- | ------- |
-| `getBoAccessToken()` | `bo_access_token` | Retrieve admin access token |
-| `getBoRefreshToken()` | `bo_refresh_token` | Retrieve admin refresh token |
-| `setBoTokens()` | both | Store admin token pair |
-| `clearBoTokens()` | both | Remove admin tokens (logout) |
-| `isBoAuthenticated()` | `bo_access_token` | Check if admin is logged in |
+Improved adapter handle management (double-click removal, edge-delete cleanup, ghost auto-connect), added lock-follow behavior on ConsistentCharacter nodes, and removed the MiniMap.
 
 ---
 
-## 2. Backoffice Login Page
+## 1. Adapter Handle Double-Click Removal
 
-### New File: `src/app/backoffice/login/page.tsx`
+Red adapter handles on the top of nodes can now be removed by double-clicking them.
 
-- Same dark theme card layout as main `/login` page
-- Shield icon + "Backoffice" / "Admin Panel" branding
-- "Back to main app" link (instead of "Back to home")
-- No "Sign Up" link (admin accounts only)
-- Sends `{ identifier, password }` to `POST /api/v1/auth/backoffice/login` via axios
-- Error handling supports both string and Pydantic array `detail` responses
-- On success: stores tokens via `setBoTokens()`, redirects to `/backoffice`
+### Store action: `removeAdapter(nodeId, adapterIndex)`
 
-### Root Layout: `src/app/backoffice/layout.tsx`
+- Finds the edge targeting `adapter-{index}` on the node and removes it
+- Re-indexes all higher adapter edges (e.g. `adapter-3` → `adapter-2`)
+- Decrements `adapterCount` in node data
 
-Minimal dark wrapper (`bg-gray-950 text-white`) — no sidebar or auth guard, so the login page renders cleanly.
+### BaseNode changes
 
----
-
-## 3. Backoffice Dashboard Layout
-
-### New File: `src/app/backoffice/(dashboard)/layout.tsx`
-
-Protected layout using `(dashboard)` Next.js route group:
-- Auth guard: `isBoAuthenticated()` → redirect to `/backoffice/login`
-- Structure: `h-screen flex` → BackofficeSidebar + (header + main content)
-- Header: Shield icon + "Backoffice" gradient text + "Admin" avatar
-- Reuses `GradientText` from `src/components/landing/gradient-text.tsx`
-
-### Route Group Behavior
-- `/backoffice/login` → minimal root layout (no sidebar/header)
-- `/backoffice` → protected layout with sidebar + header + auth guard
-- `(dashboard)` doesn't appear in the URL
+- New prop: `onAdapterRemove?: (adapterIndex: number) => void`
+- Adapter handles gain `onDoubleClick` handler and `hover:!bg-red-400` highlight when removal is enabled
+- Wired in all 4 adapter-supporting nodes: InitialPromptNode, PromptEnhancerNode, StoryTellerNode, PersonasReplacerNode
 
 ---
 
-## 4. BackofficeSidebar Component
+## 2. Adapter Edge Selection + Backspace Cleanup
 
-### New File: `src/components/backoffice/backoffice-sidebar.tsx`
+When a user selects an adapter edge and presses Backspace/Delete, the adapter handle is also cleaned up (not just the edge).
 
-Same pattern as `MainSidebar` — icon-only vertical sidebar (w-14) with hover tooltips.
+### Enhanced `onEdgesChange` in flow-store
 
-| Icon | Label | Route | Color |
-| ---- | ----- | ----- | ----- |
-| LayoutDashboard | Dashboard | `/backoffice` | blue |
-| Users | Users | `/backoffice/users` | emerald |
-| FolderKanban | Projects | `/backoffice/projects` | amber |
-| BarChart3 | Analytics | `/backoffice/analytics` | fuchsia |
-| Settings2 | Settings | `/backoffice/settings` | gray |
-| LogOut | Sign Out | → `/backoffice/login` | red (hover) |
-
-- Logout calls `clearBoTokens()` (doesn't affect main app tokens)
-- Active state: exact match for `/backoffice`, prefix match for others
+- Detects adapter edge removals (edges with `targetHandle` matching `adapter-*`)
+- Groups removals by target node, sorts indices descending to avoid re-index conflicts
+- Re-indexes remaining higher adapters and decrements `adapterCount`
+- Works for both direct edge deletion and double-click edge removal
 
 ---
 
-## 5. Backoffice Dashboard Page
+## 3. MiniMap Removed
 
-### New File: `src/app/backoffice/(dashboard)/page.tsx`
-
-Creative dashboard with mock/static data (UI shell — ready for backend wiring):
-
-**Welcome Banner** — "Welcome back, Admin" + formatted current date
-
-**Stats Cards (4-column grid):**
-| Stat | Icon | Color | Mock Value |
-| ---- | ---- | ----- | ---------- |
-| Total Users | Users | blue | 1,247 (+12%) |
-| Active Projects | FolderKanban | emerald | 38 (+4%) |
-| Flows Created | Workflow | amber | 156 (+23%) |
-| API Calls Today | Activity | fuchsia | 12,891 (+8%) |
-
-**Recent Activity** — 6-item feed with icons, descriptions, timestamps
-
-**Quick Actions** — 4 admin shortcut buttons (Manage Users, View Logs, API Usage, System Settings)
+Removed the `<MiniMap>` component and its import from `page.tsx`. Only `<Controls>` remain.
 
 ---
 
-## 6. Auth Field Change: `email` → `identifier`
+## 4. ConsistentCharacter Lock-Follow
 
-Both login pages now send `{ identifier, password }` instead of `{ email, password }` to match the updated backend schema (accepts email or username).
+A lock/unlock icon appears on ConsistentCharacter nodes when they are connected to a downstream node.
 
-### Files Changed
+### Lock toggle
+- Positioned top-right outside the node container (`absolute -top-3 -right-3`)
+- Only visible when the node has an outgoing `adapter-out` edge (`isConnected` selector)
+- Stores `data.adapterLocked` boolean in node data
 
-| File | Endpoint | Change |
-| ---- | -------- | ------ |
-| `src/app/(public)/login/page.tsx` | `/auth/login` | `email` → `identifier: email` |
-| `src/app/backoffice/login/page.tsx` | `/auth/backoffice/login` | `email` → `identifier: email` |
-
----
-
-## 7. Updated QUICKSTART.md
-
-- Expanded backoffice routing tree with `(dashboard)/` route group
-- Added `backoffice/(dashboard)` to Route Groups table
-- Added BackofficeSidebar section to Sidebar Navigation
-- Added Backoffice Authentication Flow section
-- Updated project structure tree with backoffice components
-- Updated auth flow to describe `identifier` field
+### Drag-follow behavior (page.tsx)
+- `onNodeDragStart`: captures all locked character nodes connected to the dragged node + their starting positions
+- `onNodeDrag`: applies position delta to all companion nodes
+- `onNodeDragStop`: clears companion refs
+- Uses `dragStartRef` and `dragCompanionsRef` refs
 
 ---
 
-## Files Created This Session
+## 5. Ghost Adapter Auto-Connect
 
-```
-src/lib/backoffice-auth.ts                          # Isolated admin token helpers
-src/app/backoffice/layout.tsx                       # Root wrapper (minimal)
-src/app/backoffice/login/page.tsx                   # Admin login page
-src/app/backoffice/(dashboard)/layout.tsx           # Protected layout (sidebar + header)
-src/app/backoffice/(dashboard)/page.tsx             # Dashboard home page
-src/components/backoffice/backoffice-sidebar.tsx     # Admin sidebar component
-```
+Dragging a connector from a character node and dropping it on the ghost "+" button automatically creates a new adapter handle and connects them.
+
+### Store action: `connectToGhostAdapter(sourceNodeId, sourceHandle, targetNodeId)`
+- Atomically increments `adapterCount` and creates the edge in a single store update
+
+### page.tsx wiring
+- `onConnectStart`: captures source node ID and handle in a ref
+- `onConnectEnd`: uses `document.elementFromPoint()` to detect drops on elements with `[data-ghost-adapter]` attribute
+- Walks up the DOM to find the closest React Flow node wrapper, extracts the node ID
+- Calls `connectToGhostAdapter` if a valid ghost target is found
+
+### BaseNode change
+- Added `data-ghost-adapter` HTML attribute to the ghost "+" button for DOM detection
+
+---
 
 ## Files Modified This Session
 
 ```
-src/app/(public)/login/page.tsx                     # email → identifier
-docs/QUICKSTART.md                                  # Backoffice docs
-docs/session-summary.md                             # This file
+src/store/flow-store.ts                              # Added removeAdapter, connectToGhostAdapter, enhanced onEdgesChange
+src/components/nodes/BaseNode.tsx                     # Added onAdapterRemove prop, data-ghost-adapter attr, double-click on handles
+src/components/nodes/InitialPromptNode.tsx            # Wired removeAdapter
+src/components/nodes/PromptEnhancerNode.tsx           # Wired removeAdapter
+src/components/nodes/StoryTellerNode.tsx              # Wired removeAdapter
+src/components/nodes/PersonasReplacerNode.tsx         # Wired removeAdapter
+src/components/nodes/ConsistentCharacterNode.tsx      # Added lock toggle (position, visibility, adapterLocked state)
+src/app/image-genai/page.tsx                          # Removed MiniMap, added drag-follow refs/callbacks, added onConnectStart/End
+docs/QUICKSTART.md                                    # Updated adapter docs, keyboard shortcuts, UI features
+docs/session-summary.md                               # This file
 ```
+
+---
+
+## Pending / Next Session
+
+- Rewire `flow-loader.ts` to load flows from FastAPI backend (still hits dead `/api/flows`)
+- Build backend `GET /api/v1/flows` endpoint for listing/loading flows
+- Wire `flow:closed` handler in event-wiring.ts (cancel pending saves + clear undo history)
+- Add `cancelSave(flowId)` to auto-save scheduler
+- Rewire `characters.ts` to FastAPI backend
+- Loading component fields/ports/api-config for full node configuration from backend

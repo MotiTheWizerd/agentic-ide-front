@@ -128,6 +128,18 @@ src/app/
 
 ```
 ┌─────────────────────────────────────────────────────┐
+│  DI Container (bootstrap.ts)                        │
+│  Single wiring point — all services + dependencies  │
+│  ┌──────────┐ ┌─────────────┐ ┌──────────────────┐ │
+│  │ EventBus │ │ AutoSave    │ │ EditorManager    │ │
+│  │          │ │ UndoManager │ │ ExecutorManager  │ │
+│  │          │ │ GraphManager│ │ ProjectService   │ │
+│  │          │ │             │ │ ComponentService │ │
+│  └──────────┘ └─────────────┘ └──────────────────┘ │
+└─────────────────┬───────────────────────────────────┘
+                  │ <DIProvider> + useService()
+                  ▼
+┌─────────────────────────────────────────────────────┐
 │  Dashboard (React Flow canvas)                      │
 │  ┌───────┐   ┌───────┐   ┌───────┐   ┌──────────┐ │
 │  │ Input │──▶│Process│──▶│Process│──▶│  Output  │ │
@@ -152,19 +164,18 @@ src/app/
                   │ status callbacks
                   ▼
 ┌─────────────────────────────────────────────────────┐
-│  Event Bus (event-bus.ts)                           │
-│  flow:dirty → Auto-Save (auto-save.ts)              │
-│  editor:status → Editor disabled/active state       │
-│  execution:node-status → UI updates                 │
-│  flow:created/closed/switched → Tab management      │
+│  Event Bus (event-bus.ts + event-wiring.ts)         │
+│  emitEditorEvent() — auto-injects userId            │
+│  event-wiring.ts — single source of truth for .on() │
+│  flow:dirty → Auto-Save (scheduler.ts)              │
+│  All events logged via Logger ("editor-bus")        │
 └─────────────────────────────────────────────────────┘
                   │
                   ▼
 ┌─────────────────────────────────────────────────────┐
 │  Persistence                                        │
-│  users/test/flows/{flowId}/flow.json                │
-│  File-based, debounced auto-save (2s)               │
-│  Flush-on-unload via sendBeacon                     │
+│  FastAPI backend (flows table, JSONB graph_data)    │
+│  Debounced auto-save (2s) via axios api instance    │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -172,18 +183,24 @@ src/app/
 
 | System           | File(s)                                              | Purpose                                                          |
 | ---------------- | ---------------------------------------------------- | ---------------------------------------------------------------- |
-| **Core Module**  | `src/modules/core/`                                  | Shared infrastructure (EventBus, Logger) used by all modules     |
-| EventBus         | `src/modules/core/bus/EventBus.ts`                   | Generic typed pub/sub class — each module instantiates its own   |
+| **Core Module**  | `src/modules/core/`                                  | Shared infrastructure (EventBus, Logger, DI) used by all modules |
+| DI Container     | `src/modules/core/di/Container.ts`                   | Lightweight typed DI container (factory-based, lazy singletons)  |
+| DI Tokens        | `src/modules/core/di/tokens.ts`                      | Symbol-based service tokens (`TOKENS.EventBus`, etc.)            |
+| DI React         | `src/modules/core/di/react.tsx`                      | `DIProvider`, `useContainer()`, `useService()` hook              |
+| Bootstrap        | `src/modules/bootstrap.ts`                           | Single wiring point — registers all services with dependencies   |
+| EventBus         | `src/modules/core/bus/EventBus.ts`                   | Generic typed pub/sub class with built-in logging via Logger     |
 | Logger           | `src/modules/core/logger/Logger.ts`                  | Colored console logger with module prefix                        |
 | **Editor Module**| `src/modules/image-gen-editor/`                      | Image-gen editor subsystem (engine, persistence, events, media)  |
-| Editor Manager   | `src/modules/image-gen-editor/ImageGenEditorManager.ts` | Singleton entry point: DI container, event registry, lifecycle   |
+| Editor Manager   | `src/modules/image-gen-editor/editor-manager/`       | Facade: lifecycle orchestration, project/component/flow services |
+| Component Service| `src/modules/image-gen-editor/editor-manager/component-service.ts` | Fetch component registry from backend, group by category |
+| Auto-Save        | `src/modules/image-gen-editor/auto-save/`            | Debounced persistence via axios to FastAPI backend               |
+| Undo Manager     | `src/modules/image-gen-editor/undo-manager/`         | Per-flow undo/redo (history stack, snapshot scheduler)            |
 | Execution Engine | `src/modules/image-gen-editor/engine/`               | Graph analysis, sequential node execution, executor registry     |
 | Graph Manager    | `src/modules/image-gen-editor/engine/graph/`         | Topological sort, edge classification, BFS traversal             |
-| Executor Manager | `src/modules/image-gen-editor/engine/executor/`      | Singleton registry of node executor functions by type            |
+| Executor Manager | `src/modules/image-gen-editor/engine/executor/`      | Registry of node executor functions by type                      |
 | Model Defaults   | `src/modules/image-gen-editor/model-defaults.ts`     | Per-node-type default provider + model assignments               |
-| Event Bus (editor) | `src/modules/image-gen-editor/event-bus.ts`        | Domain EventMap + singleton bus (uses core EventBus)             |
-| Auto-Save        | `src/modules/image-gen-editor/auto-save.ts`          | Debounced file persistence triggered by `flow:dirty` events      |
-| Undo Manager     | `src/modules/image-gen-editor/undo-manager.ts`       | Per-flow undo/redo with debounced snapshots and batch grouping   |
+| Event Bus (editor) | `src/modules/image-gen-editor/event-bus.ts`        | Domain EventMap, BasePayload (userId), emitEditorEvent() helper  |
+| Event Wiring     | `src/modules/image-gen-editor/event-wiring.ts`       | Single source of truth for all event subscriptions               |
 | **Shared (lib)** | `src/lib/`                                           | General utilities and AI provider infrastructure                 |
 | Branding         | `src/lib/constants.ts`                               | Centralized product name, tagline, description                   |
 | Auth             | `src/lib/auth.ts`                                    | Token storage helpers (get, set, clear, isAuthenticated)         |
@@ -333,7 +350,16 @@ When you click **Run**, the engine:
 
 ### Adapter Handles
 
-Some nodes (initialPrompt, promptEnhancer, storyTeller, personasReplacer) support **adapter inputs** — special connection points (top-left "+" handle) that receive character persona data from ConsistentCharacter nodes. These are separate from regular text flow edges and enable persona injection into prompts.
+Some nodes (initialPrompt, promptEnhancer, storyTeller, personasReplacer) support **adapter inputs** — special connection points (top "+" ghost handle) that receive character persona data from ConsistentCharacter nodes. These are separate from regular text flow edges and enable persona injection into prompts.
+
+**Adapter management:**
+- **Add adapter** — Click the dashed "+" ghost button on the top of the node, or drag a connection from a character node and drop it onto the ghost button (auto-creates handle + connects)
+- **Remove adapter** — Double-click the red adapter handle, or select the adapter edge and press Backspace/Delete (both methods clean up the handle + re-index remaining adapters)
+- **Max adapters** — 5 per node
+
+### Character Lock-Follow
+
+ConsistentCharacter nodes display a lock/unlock icon (top-right, outside the node container) when connected to a downstream node via adapter-out. When **locked**, dragging the target node also drags the locked character node(s) alongside it, maintaining their relative position.
 
 ---
 
@@ -386,7 +412,7 @@ nodeData override  →  node-type default
 ```
 src/
 ├── app/
-│   ├── layout.tsx                          # Root layout (Geist font, Sonner toasts)
+│   ├── layout.tsx                          # Root layout (Geist font, Sonner toasts, DIProvider)
 │   ├── globals.css                         # Tailwind theme, dark mode
 │   ├── (public)/                           # Public route group
 │   │   ├── layout.tsx                      # Shared public layout (Navbar)
@@ -408,8 +434,6 @@ src/
 │   │       └── page.tsx                    # Dashboard home (/backoffice)
 │   ├── prototype/page.tsx                  # Prototype/legacy page
 │   └── api/
-│       ├── flows/route.ts                  # GET list / POST save flow
-│       ├── flows/[flowId]/route.ts         # GET / DELETE single flow
 │       ├── enhance/route.ts                # POST — prompt enhancement
 │       ├── translate/route.ts              # POST — translation
 │       ├── describe/route.ts               # POST — image description (vision)
@@ -426,8 +450,14 @@ src/
 │       ├── characters/[id]/image/route.ts  # GET — character avatar image
 │       └── claude-code/test-claude/route.ts # GET — Claude CLI connectivity test
 ├── modules/
+│   ├── bootstrap.ts                        # DI wiring: registers all services + dependencies
 │   ├── core/                               # Shared infrastructure (domain-agnostic)
 │   │   ├── index.ts                        # Core barrel export
+│   │   ├── di/                             # Dependency Injection system
+│   │   │   ├── Container.ts                # Lightweight DI container (factory-based, lazy singletons)
+│   │   │   ├── tokens.ts                   # Symbol-based service tokens (TOKENS.EventBus, etc.)
+│   │   │   ├── react.tsx                   # DIProvider, useContainer(), useService() hook
+│   │   │   └── index.ts                    # DI barrel export
 │   │   ├── bus/
 │   │   │   ├── EventBus.ts                 # Generic typed EventBus<TEventMap> class
 │   │   │   └── index.ts
@@ -438,26 +468,46 @@ src/
 │   │       └── index.ts
 │   └── image-gen-editor/                   # Image-gen editor module (single responsibility)
 │       ├── index.ts                        # Barrel export (public API surface)
-│       ├── ImageGenEditorManager.ts        # Singleton entry point: DI, events, lifecycle
-│       ├── event-bus.ts                    # Domain EventMap + singleton (uses core EventBus)
-│       ├── auto-save.ts                    # Debounced file persistence via event bus
-│       ├── undo-manager.ts                 # Per-flow undo/redo (snapshot stacks + debounce)
+│       ├── event-bus.ts                    # Domain EventMap, BasePayload, emitEditorEvent() helper
+│       ├── event-wiring.ts                # Single source of truth for all event subscriptions
 │       ├── model-defaults.ts               # Per-node-type model assignments
 │       ├── scene-prompts.ts                # Scene prompt composition from dropdown values
 │       ├── image-utils.ts                  # Image processing utilities
 │       ├── characters.ts                   # Character data helpers (localStorage)
+│       ├── editor-manager/                 # Editor lifecycle facade
+│       │   ├── index.ts                    # Barrel export
+│       │   ├── ImageGenEditorManager.ts    # Facade: lifecycle + routing (DI constructor injection)
+│       │   ├── types.ts                    # EditorStatus, ProjectOption, EditorReactiveState
+│       │   ├── store.ts                    # Zustand store + hook + syncReactiveState
+│       │   ├── project-service.ts          # ProjectService: fetch, select, create projects
+│       │   ├── component-service.ts        # ComponentService: fetch components from backend
+│       │   ├── flow-loader.ts              # FlowLoader: load flows from backend API
+│       │   └── node-id-service.ts          # NodeIdService: monotonic node ID counter
+│       ├── auto-save/                      # Auto-save subsystem
+│       │   ├── index.ts                    # Barrel export
+│       │   ├── AutoSaveManager.ts          # Browser lifecycle (beforeunload) — no event deps
+│       │   ├── types.ts                    # Config constants + SerializableFlow
+│       │   ├── serializer.ts               # serializeFlow() — strips runtime state
+│       │   ├── persistence.ts              # saveFlow() + flushAll() via axios api instance
+│       │   └── scheduler.ts               # scheduleSave() debounce + cancelAll()
+│       ├── undo-manager/                   # Undo/redo subsystem
+│       │   ├── index.ts                    # Barrel export
+│       │   ├── UndoManager.ts             # Facade: routes to history + scheduler (DI-managed)
+│       │   ├── types.ts                    # Snapshot, FlowHistory, config constants
+│       │   ├── history.ts                  # HistoryStack: per-flow past/future stacks
+│       │   └── scheduler.ts               # SnapshotScheduler: debounce + batch window
 │       └── engine/
 │           ├── index.ts                    # Engine barrel export
 │           ├── types.ts                    # NodeOutput, ExecutionState, StatusCallback types
 │           ├── runner.ts                   # executeGraph() — orchestrates full pipeline run
 │           ├── graph/                      # Graph analysis sub-module
-│           │   ├── GraphManager.ts         # Singleton facade for graph operations
+│           │   ├── GraphManager.ts         # Facade for graph operations (DI-managed)
 │           │   ├── index.ts                # Barrel export
 │           │   ├── topological-sort.ts     # Kahn's algorithm, cycle detection
 │           │   ├── edge-classification.ts  # Text vs adapter edge classification
 │           │   └── traversal.ts            # BFS upstream/downstream traversal
 │           └── executor/                   # Node executor sub-module
-│               ├── ExecutorManager.ts      # Singleton registry manager
+│               ├── ExecutorManager.ts      # Registry manager (DI constructor injection)
 │               ├── index.ts                # Barrel export
 │               ├── utils.ts               # Shared helpers (mergeInputText, persona injection)
 │               ├── data-sources.ts         # consistentCharacter, sceneBuilder executors
@@ -499,7 +549,10 @@ src/
 │   │   ├── Modal.tsx                       # Reusable modal with blurry backdrop + fade animation
 │   │   ├── ProviderSelect.tsx              # AI provider selector (characters, prototype pages)
 │   │   ├── UserAvatar.tsx                  # Reusable user avatar (initials, gradient circle)
-│   │   └── AppToaster.tsx                  # Sonner toaster (dark theme, bottom-right)
+│   │   ├── AppToaster.tsx                  # Sonner toaster (dark theme, bottom-right)
+│   │   └── icon-registry.ts               # Lucide icon name → component lookup map
+│   ├── providers/
+│   │   └── AppProviders.tsx                # Client-side DI bootstrap + DIProvider wrapper
 │   ├── backoffice/
 │   │   └── backoffice-sidebar.tsx          # Backoffice sidebar (Dashboard, Users, Projects, Analytics, Settings)
 │   ├── ui/                                 # Radix UI primitives (button, dialog, popover, command)
@@ -561,8 +614,9 @@ interface ExecutionState {
 
 ### Key Actions
 
-- **Flow CRUD**: `createFlow`, `closeFlow`, `switchFlow`, `renameFlow`
+- **Flow CRUD**: `createFlow` (empty canvas), `closeFlow`, `switchFlow`, `renameFlow`
 - **Graph editing**: `onNodesChange`, `onEdgesChange`, `onConnect`, `updateNodeData`, `addNode`
+- **Adapter management**: `removeAdapter` (double-click or edge delete with re-indexing), `connectToGhostAdapter` (auto-create handle + edge on ghost drop)
 - **Execution**: `runFromNode` (partial graph re-execution with smart upstream resolution)
 - **Undo/Redo**: `undo`, `redo` — per-flow history via `UndoManager` singleton
 - **State**: `markClean`, `patchFlow` (immutable update helper)
@@ -571,28 +625,20 @@ interface ExecutionState {
 
 ## Persistence
 
-Flows are saved as JSON files on the server filesystem:
-
-```
-users/test/flows/{flowId}/flow.json
-```
+Flows are persisted to the FastAPI backend database as JSONB (`graph_data` column in the `flows` table). The old file-based persistence (`users/test/flows/`) has been removed.
 
 ### Auto-Save Flow
 
 1. Any state change in the store emits `flow:dirty` via the event bus
-2. `auto-save.ts` listens for `flow:dirty` and debounces saves (2 second delay)
-3. Save serializes the flow (strips runtime state) and POSTs to `/api/flows`
-4. The API route writes the JSON file to disk
-5. On page unload, `flushAll()` uses `navigator.sendBeacon` to save any remaining dirty flows
+2. `auto-save/` listens for `flow:dirty` and debounces saves (2 second delay)
+3. Save serializes the flow (strips runtime state) and sends via `api.post()` to FastAPI backend
+4. On page unload, `flushAll()` fires `api.post()` for each dirty flow (fire-and-forget)
 
-### API Endpoints
+### Backend Flow API
 
-| Method | Route                     | Description                           |
-| ------ | ------------------------- | ------------------------------------- |
-| GET    | `/api/flows`              | List all saved flows                  |
-| POST   | `/api/flows`              | Save / update a flow                  |
-| GET    | `/api/flows/[flowId]`     | Load a single flow                    |
-| DELETE | `/api/flows/[flowId]`     | Delete a flow                         |
+| Method | Path                          | Description                           |
+| ------ | ----------------------------- | ------------------------------------- |
+| POST   | `/api/v1/flows/save-flow`    | Upsert a flow (auto-save, create/update) |
 
 ---
 
@@ -619,6 +665,43 @@ Access tokens expire in 30 minutes, refresh tokens in 7 days. The axios intercep
 
 ---
 
+## Backend Components API
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| POST | `/api/v1/components/get-components` | Fetch all component definitions (type, name, category, icon, color) |
+
+Components are stored in the `agentic_components` table and returned grouped by category in the sidebar. The frontend resolves icon name strings to lucide-react components via `icon-registry.ts`.
+
+---
+
+## Backend Database Schema
+
+The FastAPI backend uses the following tables:
+
+### Component System (server-driven node registry)
+
+| Table | Purpose |
+| ----- | ------- |
+| `agentic_components` | Node type blueprints (type, name, category, icon, color, uses_llm, defaults) |
+| `component_fields` | Configurable fields per component (field_key, field_type, options, validation) |
+| `component_ports` | Input/output handles per component (direction, port_type, is_dynamic) |
+| `component_api_config` | Execution/API mapping (api_route, request/response_mapping, executor_type) |
+| `component_output_schema` | Output definitions per component (output_key, output_type, source) |
+
+### Data Storage
+
+| Table | Purpose |
+| ----- | ------- |
+| `flows` | Flow graphs as JSONB (id, name, user_id, project_id, graph_data) |
+| `characters` | Character personas (name, description, image_path, user_id, project_id) |
+| `users` | User accounts |
+| `projects` | User projects |
+
+All 13 node types are seeded in the component tables with their fields, ports, API configs, and output schemas.
+
+---
+
 ## API Routes — AI Processing
 
 All AI processing routes accept a `providerId` and optional `model` field. They resolve the AI provider, call the external API, and return the result.
@@ -642,19 +725,107 @@ All AI processing routes accept a `providerId` and optional `model` field. They 
 
 The event bus uses a generic `EventBus<T>` class from `src/modules/core/bus/` instantiated with the editor's domain `EventMap` in `src/modules/image-gen-editor/event-bus.ts`. It decouples the UI, persistence, and execution layers.
 
-| Event                    | Payload                                  | Listeners                |
+### Architecture
+
+- **EventBus** (`src/modules/core/bus/EventBus.ts`) — generic typed pub/sub with built-in logging (every `emit()` logs via Logger)
+- **EventMap** (`src/modules/image-gen-editor/event-bus.ts`) — domain event catalog with typed payloads; every event includes `userId` via `BasePayload`
+- **emitEditorEvent()** (`src/modules/image-gen-editor/event-bus.ts`) — typed emit helper that auto-injects `userId` from the user store; all emit sites use this instead of `eventBus.emit()` directly
+- **event-wiring.ts** (`src/modules/image-gen-editor/event-wiring.ts`) — **single source of truth** for all event subscriptions; called once by `bootstrap()`; no service subscribes to events in its own `init()`
+
+### Event Catalog
+
+All payloads include `{ userId }` via `BasePayload` (auto-injected by `emitEditorEvent()`).
+
+| Event                    | Payload (+ userId)                       | Wired Handlers           |
 | ------------------------ | ---------------------------------------- | ------------------------ |
-| `flow:created`           | `{ flowId, name }`                       | Auto-save                |
+| `flow:created`           | `{ flowId, name }`                       | —                        |
 | `flow:closed`            | `{ flowId }`                             | —                        |
 | `flow:switched`          | `{ flowId }`                             | —                        |
 | `flow:renamed`           | `{ flowId, name }`                       | —                        |
 | `flow:dirty`             | `{ flowId }`                             | Auto-save (debounced)    |
 | `flow:saved`             | `{ flowId }`                             | —                        |
-| `editor:status`          | `{ status: "disabled" \| "active" }`     | Editor Manager           |
-| `execution:started`      | `{ flowId }`                             | UI                       |
-| `execution:node-status`  | `{ flowId, nodeId, status, output? }`    | UI (node status rings)   |
-| `execution:completed`    | `{ flowId }`                             | UI                       |
-| `execution:error`        | `{ flowId, error }`                      | UI (toast notification)  |
+| `editor:status`          | `{ status: "disabled" \| "active" }`     | —                        |
+| `execution:started`      | `{ flowId }`                             | —                        |
+| `execution:node-status`  | `{ flowId, nodeId, status, output? }`    | —                        |
+| `execution:completed`    | `{ flowId }`                             | —                        |
+| `execution:error`        | `{ flowId, error }`                      | —                        |
+
+### Emitting Events
+
+```typescript
+import { emitEditorEvent } from "@/modules/image-gen-editor";
+
+// userId is auto-injected from the user store — never pass it manually
+emitEditorEvent("flow:dirty", { flowId });
+// → payload: { flowId, userId: "user-abc-123" }
+```
+
+### Adding Event Handlers
+
+All subscriptions go in `src/modules/image-gen-editor/event-wiring.ts`:
+
+```typescript
+export function wireEditorEvents(eventBus: EditorEventBus): void {
+  unsubs.push(
+    eventBus.on("flow:dirty", ({ flowId }) => scheduleSave(flowId)),
+  );
+  // Add new handlers here — this is the ONLY file with .on() calls
+}
+```
+
+---
+
+## Dependency Injection
+
+The app uses a lightweight custom DI container (no external library). All services are registered with their dependencies in a single `bootstrap()` function, making the dependency graph explicit and readable.
+
+### Container Design
+
+- **Factory-based registration**: each service is created via a factory that receives the container
+- **Lazy singletons**: instances are created on first `resolve()`, cached forever
+- **No decorators / reflect-metadata**: works cleanly with Next.js + React
+- **Symbol-based tokens**: unique, debuggable, zero collision risk
+
+### Registered Services (10 tokens)
+
+| Token | Class | Scope | Dependencies |
+| ----- | ----- | ----- | ------------ |
+| `TOKENS.EventBus` | `EventBus<EventMap>` | Singleton | None (leaf) |
+| `TOKENS.GraphManager` | `GraphManager` | Singleton | None (stateless) |
+| `TOKENS.ExecutorManager` | `ExecutorManager` | Singleton | Logger |
+| `TOKENS.UndoManager` | `UndoManager` | Singleton | None (self-contained) |
+| `TOKENS.AutoSaveManager` | `AutoSaveManager` | Singleton | None (browser lifecycle only) |
+| `TOKENS.ProjectService` | `ProjectService` | Singleton | None |
+| `TOKENS.ComponentService` | `ComponentService` | Singleton | None |
+| `TOKENS.FlowLoader` | `FlowLoader` | Singleton | None |
+| `TOKENS.NodeIdService` | `NodeIdService` | Singleton | None |
+| `TOKENS.EditorManager` | `ImageGenEditorManager` | Singleton | AutoSaveManager, ProjectService, ComponentService, FlowLoader, NodeIdService |
+
+### Bootstrap & React Integration
+
+```
+App loads → layout.tsx renders <AppProviders>
+  → AppProviders calls bootstrap() once (useMemo)
+    → Container created, all 10 factories registered
+    → Backward-compat singletons eagerly resolved
+    → wireEditorEvents() subscribes all event handlers
+  → <DIProvider container={container}> wraps the app
+    → Components use useService<T>(TOKENS.X) to resolve services
+```
+
+### Usage in Components
+
+```typescript
+import { useService } from "@/modules/core/di";
+import { TOKENS } from "@/modules/core/di";
+import type { ImageGenEditorManager } from "@/modules/image-gen-editor";
+
+const editor = useService<ImageGenEditorManager>(TOKENS.EditorManager);
+```
+
+### Backward Compatibility
+
+Existing `import { eventBus }`, `import { undoManager }`, `import { imageGenEditor }` patterns still work via Proxy objects that delegate to the DI-managed instances. These will be migrated incrementally.
 
 ---
 
@@ -677,8 +848,10 @@ The event bus uses a generic `EventBus<T>` class from `src/modules/core/bus/` in
 - **User Avatar** — Gradient initials avatar in the authenticated header, pulled from Zustand user store
 - **Character Management** — Create and manage consistent character personas at `/image-genai/characters`
 - **Multi-Select** — Shift+Click to add/remove nodes from selection; Shift+Drag for box (marquee) select
-- **MiniMap + Controls** — React Flow built-in minimap, zoom controls, and a help button (?) with an interactive shortcut reference popup
+- **Controls** — React Flow zoom controls and a help button (?) with an interactive shortcut reference popup
 - **Help Panel** — Click the ? button in the bottom-left controls to view all canvas controls, selection, connection, keyboard shortcuts, and node interaction instructions in a two-column popup
+- **Adapter Handle Management** — Double-click red adapter handles to remove; drop connections on ghost "+" button to auto-create + connect; select adapter edge + Backspace to remove with handle cleanup
+- **Character Lock-Follow** — Lock icon on connected ConsistentCharacter nodes; when locked, character follows its target during drag
 - **Dark Theme** — Dark-first gradient theme with Geist font family
 
 ### Keyboard Shortcuts
@@ -693,8 +866,9 @@ The event bus uses a generic `EventBus<T>` class from `src/modules/core/bus/` in
 | Ctrl+Shift+Tab   | Previous tab                            |
 | Shift+Click      | Add/remove node from selection          |
 | Shift+Drag       | Box select multiple nodes               |
-| Backspace/Delete | Remove selected nodes                   |
+| Backspace/Delete | Remove selected nodes/edges (adapter edges also clean up handles) |
 | Double-click edge| Remove a connection                     |
+| Double-click adapter handle | Remove adapter input + its edge |
 
 ---
 

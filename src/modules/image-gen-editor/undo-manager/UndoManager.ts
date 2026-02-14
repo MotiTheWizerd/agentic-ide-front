@@ -4,13 +4,15 @@
  * Delegates to:
  *  - HistoryStack     — pure per-flow past/future stacks
  *  - SnapshotScheduler — debounce + batch window logic
+ *
+ * No external dependencies — self-contained.
  */
 
 import type { Snapshot } from "./types";
 import { HistoryStack } from "./history";
 import { SnapshotScheduler } from "./scheduler";
 
-class UndoManager {
+export class UndoManager {
   private history = new HistoryStack();
   private scheduler = new SnapshotScheduler(this.history);
 
@@ -48,5 +50,3 @@ class UndoManager {
     this.history.clear(flowId);
   }
 }
-
-export const undoManager = new UndoManager();

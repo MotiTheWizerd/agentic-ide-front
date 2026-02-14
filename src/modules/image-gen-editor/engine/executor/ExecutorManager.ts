@@ -18,27 +18,19 @@ import { initialPrompt, promptEnhancer, translator, storyTeller, grammarFix, com
 import { imageDescriber, imageGenerator, personasReplacer } from "./image-processing";
 import { textOutput } from "./output";
 
-const logger = new Logger("executor");
-
-class ExecutorManager {
-  private static instance: ExecutorManager;
+export class ExecutorManager {
   private registry = new Map<string, NodeExecutor>();
+  private logger: Logger;
 
-  private constructor() {
+  constructor(logger?: Logger) {
+    this.logger = logger ?? new Logger("executor");
     this.registerBuiltins();
-  }
-
-  static getInstance(): ExecutorManager {
-    if (!ExecutorManager.instance) {
-      ExecutorManager.instance = new ExecutorManager();
-    }
-    return ExecutorManager.instance;
   }
 
   /** Register a node executor by type name. Overwrites if already registered. */
   register(nodeType: string, executor: NodeExecutor): this {
     this.registry.set(nodeType, executor);
-    logger.info(`Registered executor: ${nodeType}`);
+    this.logger.info(`Registered executor: ${nodeType}`);
     return this;
   }
 
@@ -86,6 +78,3 @@ class ExecutorManager {
     this.registry.set("textOutput", textOutput);
   }
 }
-
-/** Singleton executor manager instance. */
-export const executorManager = ExecutorManager.getInstance();

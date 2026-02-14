@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useState, useEffect, useMemo } from "react";
+import { useCallback, useState, useEffect, useMemo, useRef } from "react";
 import {
   ReactFlow,
   Background,
   Controls,
   ControlButton,
-  MiniMap,
+
   BackgroundVariant,
   useReactFlow,
   ReactFlowProvider,
@@ -15,31 +15,20 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
-  MessageSquareText,
-  Sparkles,
-  Languages,
-  Group,
-  FileText,
   AlertCircle,
   X,
-  ScanEye,
   ChevronDown,
   ChevronRight,
   UserRound,
   Box,
   Puzzle,
-  BookOpen,
-  SpellCheck,
-  CloudSun,
-  Shrink,
-  ImageIcon,
-  UserRoundPen,
   HelpCircle,
   Plus,
 } from "lucide-react";
 import { useFlowStore } from "@/store/flow-store";
 import { nodeTypes } from "@/components/nodes";
 import { getCharacters, type Character, imageGenEditor, useImageGenEditorStore } from "@/modules/image-gen-editor";
+import { resolveIcon } from "@/components/shared/icon-registry";
 import { GeneralDropdown } from "@/components/shared/GeneralDropdown";
 import { Modal } from "@/components/shared/Modal";
 import { TabBar } from "@/components/TabBar";
@@ -47,48 +36,6 @@ import { ImageLightbox } from "@/components/ImageLightbox";
 import { useUserStore } from "@/store/user-store";
 import { BRAND } from "@/lib/constants";
 
-type SidebarItem = { type: string; label: string; icon: React.ComponentType<{ className?: string }>; color: string };
-type SidebarGroup = { label: string; items: SidebarItem[] };
-
-const componentGroups: SidebarGroup[] = [
-  {
-    label: "Input",
-    items: [
-      { type: "initialPrompt", label: "Initial Prompt", icon: MessageSquareText, color: "text-cyan-400" },
-      { type: "imageDescriber", label: "Image Describer", icon: ScanEye, color: "text-pink-400" },
-    ],
-  },
-  {
-    label: "Scene Atmosphere",
-    items: [
-      { type: "sceneBuilder", label: "Scene Builder", icon: CloudSun, color: "text-sky-400" },
-    ],
-  },
-  {
-    label: "Processing",
-    items: [
-      { type: "promptEnhancer", label: "Prompt Enhancer", icon: Sparkles, color: "text-violet-400" },
-      { type: "storyTeller", label: "Story Teller", icon: BookOpen, color: "text-amber-400" },
-      { type: "translator", label: "Translator", icon: Languages, color: "text-orange-400" },
-      { type: "grammarFix", label: "Grammar Fix", icon: SpellCheck, color: "text-green-400" },
-      { type: "compressor", label: "Compressor", icon: Shrink, color: "text-teal-400" },
-      { type: "personasReplacer", label: "Personas Replacer", icon: UserRoundPen, color: "text-rose-400" },
-    ],
-  },
-  {
-    label: "Output",
-    items: [
-      { type: "textOutput", label: "Text Output", icon: FileText, color: "text-emerald-400" },
-      { type: "imageGenerator", label: "Image Generator", icon: ImageIcon, color: "text-fuchsia-400" },
-    ],
-  },
-  {
-    label: "Layout",
-    items: [
-      { type: "group", label: "Group", icon: Group, color: "text-gray-400" },
-    ],
-  },
-];
 
 function Shortcut({ keys, desc }: { keys: string; desc: string }) {
   return (
@@ -132,6 +79,9 @@ function ImageGenAIInner() {
   // Editor manager
   const projects = useImageGenEditorStore((s) => s.projects);
   const activeProjectId = useImageGenEditorStore((s) => s.activeProjectId);
+  const editorStatus = useImageGenEditorStore((s) => s.status);
+  const isDisabled = editorStatus === "disabled";
+  const componentGroups = useImageGenEditorStore((s) => s.componentGroups);
 
   // Initialize editor manager on mount
   useEffect(() => {
@@ -180,17 +130,49 @@ function ImageGenAIInner() {
     [onEdgesChange]
   );
 
+  // --- Drop connection on ghost adapter button → auto-create + connect ---
+  const connectStartRef = useRef<{ nodeId: string; handleId: string } | null>(null);
+  const connectToGhostAdapter = useFlowStore((s) => s.connectToGhostAdapter);
+
+  const onConnectStart = useCallback(
+    (_event: MouseEvent | TouchEvent, params: { nodeId: string | null; handleId: string | null }) => {
+      if (params.nodeId && params.handleId) {
+        connectStartRef.current = { nodeId: params.nodeId, handleId: params.handleId };
+      }
+    },
+    []
+  );
+
+  const onConnectEnd = useCallback(
+    (event: MouseEvent | TouchEvent) => {
+      const source = connectStartRef.current;
+      connectStartRef.current = null;
+      if (!source || source.handleId !== "adapter-out") return;
+
+      const clientX = "clientX" in event ? event.clientX : event.touches?.[0]?.clientX;
+      const clientY = "clientY" in event ? event.clientY : event.touches?.[0]?.clientY;
+      if (clientX == null || clientY == null) return;
+
+      const target = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
+      const ghostButton = target?.closest('[data-ghost-adapter]');
+      if (!ghostButton) return;
+
+      const nodeWrapper = ghostButton.closest('.react-flow__node');
+      const targetNodeId = nodeWrapper?.getAttribute('data-id');
+      if (!targetNodeId) return;
+
+      connectToGhostAdapter(source.nodeId, source.handleId, targetNodeId);
+    },
+    [connectToGhostAdapter]
+  );
+
   // Help popup state
   const [showHelp, setShowHelp] = useState(false);
 
   // Sidebar collapse state
   const [assetsOpen, setAssetsOpen] = useState(true);
   const [componentsOpen, setComponentsOpen] = useState(true);
-  const [openSubs, setOpenSubs] = useState<Record<string, boolean>>(() => {
-    const init: Record<string, boolean> = { personas: true };
-    componentGroups.forEach((g) => { init[g.label] = true; });
-    return init;
-  });
+  const [openSubs, setOpenSubs] = useState<Record<string, boolean>>({ personas: true });
   const toggleSub = useCallback((key: string) => {
     setOpenSubs((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
@@ -288,7 +270,37 @@ function ImageGenAIInner() {
     event.dataTransfer.dropEffect = "move";
   }, []);
 
-  // --- Canvas node drag: detect group intersection ---
+  // --- Canvas node drag: detect group intersection + locked adapter follow ---
+
+  // Track locked character companions during drag
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const dragCompanionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+
+  const onNodeDragStart = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      dragStartRef.current = { x: node.position.x, y: node.position.y };
+      dragCompanionsRef.current.clear();
+
+      // Find locked character nodes connected to this node via adapter edges
+      const { flows, activeFlowId } = useFlowStore.getState();
+      const flow = flows[activeFlowId];
+      if (!flow) return;
+
+      for (const edge of flow.edges) {
+        if (edge.target !== node.id) continue;
+        if (!edge.targetHandle?.startsWith("adapter-")) continue;
+
+        const sourceNode = flow.nodes.find((n) => n.id === edge.source);
+        if (!sourceNode || !sourceNode.data.adapterLocked) continue;
+
+        dragCompanionsRef.current.set(sourceNode.id, {
+          x: sourceNode.position.x,
+          y: sourceNode.position.y,
+        });
+      }
+    },
+    []
+  );
 
   const onNodeDrag = useCallback(
     (_event: React.MouseEvent, node: Node) => {
@@ -300,13 +312,29 @@ function ImageGenAIInner() {
       const intersecting = getIntersectingNodes(node);
       const group = intersecting.find((n) => n.type === "group");
       setHoveredGroupId(group?.id ?? null);
+
+      // Move locked companions by the same delta
+      if (dragStartRef.current && dragCompanionsRef.current.size > 0) {
+        const dx = node.position.x - dragStartRef.current.x;
+        const dy = node.position.y - dragStartRef.current.y;
+
+        for (const [companionId, startPos] of dragCompanionsRef.current) {
+          onNodesChange([{
+            type: "position",
+            id: companionId,
+            position: { x: startPos.x + dx, y: startPos.y + dy },
+          }]);
+        }
+      }
     },
-    [getIntersectingNodes, setHoveredGroupId]
+    [getIntersectingNodes, setHoveredGroupId, onNodesChange]
   );
 
   const onNodeDragStop = useCallback(
     (_event: React.MouseEvent, node: Node) => {
       setHoveredGroupId(null);
+      dragStartRef.current = null;
+      dragCompanionsRef.current.clear();
 
       if (node.type === "group") return;
 
@@ -399,7 +427,8 @@ function ImageGenAIInner() {
         </div>
       )}
 
-      {/* Tab bar */}
+      {/* Editor area — disabled when no project selected */}
+      <div className={`flex flex-col flex-1 overflow-hidden ${isDisabled ? "pointer-events-none opacity-40 select-none" : ""}`}>
       <TabBar />
 
       <div className="flex flex-1 overflow-hidden">
@@ -475,28 +504,31 @@ function ImageGenAIInner() {
           {componentsOpen && (
             <div className="flex flex-col gap-0.5 mb-2 pl-2">
               {componentGroups.map((group) => (
-                <div key={group.label}>
+                <div key={group.category}>
                   <button
-                    onClick={() => toggleSub(group.label)}
+                    onClick={() => toggleSub(group.category)}
                     className="flex items-center gap-1 px-1 py-1 text-[9px] font-medium text-gray-500 uppercase tracking-wider hover:text-gray-400 transition-colors w-full"
                   >
-                    {openSubs[group.label] ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronRight className="w-2.5 h-2.5" />}
-                    {group.label}
+                    {openSubs[group.category] ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronRight className="w-2.5 h-2.5" />}
+                    {group.category}
                   </button>
 
-                  {openSubs[group.label] && (
+                  {openSubs[group.category] && (
                     <div className="flex flex-col gap-1.5 mb-1">
-                      {group.items.map((item) => (
-                        <div
-                          key={item.type}
-                          draggable
-                          onDragStart={(e) => onDragStart(e, item.type)}
-                          className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-800 bg-gray-900/50 hover:bg-gray-800/70 hover:border-gray-700 cursor-grab active:cursor-grabbing transition-colors"
-                        >
-                          <item.icon className={`w-4 h-4 ${item.color}`} />
-                          <span className="text-xs text-gray-300">{item.label}</span>
-                        </div>
-                      ))}
+                      {group.items.map((item) => {
+                        const Icon = resolveIcon(item.icon);
+                        return (
+                          <div
+                            key={item.type}
+                            draggable
+                            onDragStart={(e) => onDragStart(e, item.type)}
+                            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-800 bg-gray-900/50 hover:bg-gray-800/70 hover:border-gray-700 cursor-grab active:cursor-grabbing transition-colors"
+                          >
+                            {Icon && <Icon className={`w-4 h-4 text-${item.color}-400`} />}
+                            <span className="text-xs text-gray-300">{item.name}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -517,9 +549,12 @@ function ImageGenAIInner() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onConnectStart={onConnectStart}
+            onConnectEnd={onConnectEnd}
             onDrop={onDrop}
             onDragOver={onDragOver}
             onEdgeDoubleClick={onEdgeDoubleClick}
+            onNodeDragStart={onNodeDragStart}
             onNodeDrag={onNodeDrag}
             onNodeDragStop={onNodeDragStop}
             nodeTypes={nodeTypes}
@@ -612,13 +647,10 @@ function ImageGenAIInner() {
                 </div>
               </div>
             )}
-            <MiniMap
-              nodeColor={() => "#6366f1"}
-              maskColor="rgba(0,0,0,0.7)"
-              className="!bg-gray-900 !border-gray-700 !rounded-lg"
-            />
+
           </ReactFlow>
         </div>
+      </div>
       </div>
     </div>
   );

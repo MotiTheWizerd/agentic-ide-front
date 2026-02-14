@@ -14,6 +14,7 @@ interface BaseNodeProps {
   hasOutput?: boolean;
   adapterCount?: number; // 0–5 top handles
   onAdapterAdd?: () => void; // show ghost handle to add adapter
+  onAdapterRemove?: (adapterIndex: number) => void; // double-click red handle to remove
   hasAdapterOutput?: boolean; // bottom handle for adapter sources
   onSettingsClick?: () => void;
   onTrigger?: () => void; // play button — runs this node (and downstream) using cached upstream outputs
@@ -42,6 +43,7 @@ export function BaseNode({
   hasOutput = true,
   adapterCount = 0,
   onAdapterAdd,
+  onAdapterRemove,
   hasAdapterOutput = false,
   onSettingsClick,
   onTrigger,
@@ -68,6 +70,7 @@ export function BaseNode({
           <>
             {showGhost && (
               <button
+                data-ghost-adapter
                 onClick={(e) => { e.stopPropagation(); onAdapterAdd(); }}
                 onMouseDown={(e) => e.stopPropagation()}
                 className="nodrag absolute w-3.5 h-3.5 rounded-full border-2 border-dashed border-gray-500 bg-gray-800 flex items-center justify-center hover:border-red-400 hover:bg-gray-700 transition-colors z-10 cursor-pointer"
@@ -87,10 +90,11 @@ export function BaseNode({
                 type="target"
                 position={Position.Top}
                 id={`adapter-${i}`}
-                className="!w-3 !h-3 !bg-red-500 !border-2 !border-gray-900"
+                className={`!w-3 !h-3 !bg-red-500 !border-2 !border-gray-900 ${onAdapterRemove ? "hover:!bg-red-400" : ""}`}
                 style={{
                   left: `${(((showGhost ? i + 2 : i + 1)) / (totalSlots + 1)) * 100}%`,
                 }}
+                onDoubleClick={onAdapterRemove ? (e) => { e.stopPropagation(); onAdapterRemove(i); } : undefined}
               />
             ))}
           </>

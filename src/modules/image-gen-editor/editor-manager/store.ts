@@ -5,6 +5,7 @@ const useEditorStore = create<EditorReactiveState>(() => ({
   status: "disabled",
   projects: [],
   activeProjectId: "",
+  componentGroups: [],
   initialized: false,
   loading: false,
 }));

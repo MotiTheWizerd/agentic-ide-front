@@ -152,18 +152,16 @@ export function TabBar() {
               <span className="truncate max-w-[120px]">{flow.name}</span>
             )}
 
-            {/* Close button (only if more than 1 tab) */}
-            {flowIds.length > 1 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  closeFlow(flowId);
-                }}
-                className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-gray-700 transition-all"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
+            {/* Close button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                closeFlow(flowId);
+              }}
+              className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-gray-700 transition-all"
+            >
+              <X className="w-3 h-3" />
+            </button>
           </div>
         );
       })}

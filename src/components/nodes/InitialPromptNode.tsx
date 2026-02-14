@@ -7,6 +7,7 @@ import { useFlowStore } from "@/store/flow-store";
 
 export function InitialPromptNode({ id, data }: NodeProps) {
   const updateNodeData = useFlowStore((s) => s.updateNodeData);
+  const removeAdapter = useFlowStore((s) => s.removeAdapter);
   const runFromNode = useFlowStore((s) => s.runFromNode);
   const status = useFlowStore((s) => s.flows[s.activeFlowId]?.execution.nodeStatus[id] || "idle");
   const errorMessage = useFlowStore((s) => s.flows[s.activeFlowId]?.execution.nodeOutputs[id]?.error);
@@ -32,6 +33,7 @@ export function InitialPromptNode({ id, data }: NodeProps) {
         hasInput={false}
         adapterCount={adapterCount}
         onAdapterAdd={() => updateNodeData(id, { adapterCount: adapterCount + 1 })}
+        onAdapterRemove={(i) => removeAdapter(id, i)}
         onSettingsClick={() => setSettingsOpen(!settingsOpen)}
         onTrigger={() => runFromNode(id)}
         usesLLM

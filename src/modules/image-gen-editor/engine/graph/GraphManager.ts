@@ -5,7 +5,7 @@
  *  - Facade: single access point for topological sorting, edge classification, and traversal
  *  - Delegates to specialized sub-modules for each responsibility
  *
- * Consumers can use the singleton `graphManager` or import standalone functions directly.
+ * Stateless — no constructor dependencies. Registered in DI for consistency.
  */
 
 import type { Node, Edge } from "@xyflow/react";
@@ -14,18 +14,7 @@ import { buildExecutionPlan } from "./topological-sort";
 import { getTextInputNodeIds, getAdapterInputNodeIds } from "./edge-classification";
 import { getUpstreamNodes, getDownstreamNodes } from "./traversal";
 
-class GraphManager {
-  private static instance: GraphManager;
-
-  private constructor() {}
-
-  static getInstance(): GraphManager {
-    if (!GraphManager.instance) {
-      GraphManager.instance = new GraphManager();
-    }
-    return GraphManager.instance;
-  }
-
+export class GraphManager {
   // ---- Topological Sort ----
 
   /** Build a topologically sorted execution plan. Throws on cycles. */
@@ -57,6 +46,3 @@ class GraphManager {
     return getDownstreamNodes(nodeId, nodes, edges);
   }
 }
-
-/** Singleton graph manager instance. */
-export const graphManager = GraphManager.getInstance();
