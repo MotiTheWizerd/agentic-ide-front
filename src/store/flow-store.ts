@@ -14,10 +14,15 @@ import type {
   NodeExecutionStatus,
   NodeOutput,
 } from "@/modules/image-gen-editor";
-import { executeGraph } from "@/modules/image-gen-editor/engine/runner";
 import { getDownstreamNodes, getUpstreamNodes } from "@/modules/image-gen-editor/engine/graph";
 import { emitEditorEvent } from "@/modules/image-gen-editor";
-import { toastSuccess, toastError } from "@/lib/toast";
+import {
+  sendRemoteExecution,
+  getExecutingFlowId,
+  clearExecutionTracking,
+} from "@/modules/image-gen-editor/execution-bridge";
+import { getWebSocketManager } from "@/modules/websocket";
+import { toastError } from "@/lib/toast";
 import { undoManager, type Snapshot } from "@/modules/image-gen-editor";
 import type { FlowData } from "./types";
 
@@ -75,7 +80,7 @@ function sortNodes(nodes: Node[]): Node[] {
 // ---- Store helpers ----
 
 /** Immutably update a specific flow in the flows map. */
-function patchFlow(
+export function patchFlow(
   flows: Record<string, FlowData>,
   flowId: string,
   patch: Partial<FlowData>
@@ -113,7 +118,7 @@ interface FlowStoreState {
   setHoveredGroupId: (id: string | null) => void;
 
   // Execution actions (operate on active flow)
-  runFromNode: (triggerNodeId: string) => Promise<void>;
+  runFromNode: (triggerNodeId: string) => void;
   resetExecution: () => void;
 
   // Tab management
@@ -520,12 +525,19 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
     });
   },
 
-  runFromNode: async (triggerNodeId: string) => {
+  runFromNode: (triggerNodeId: string) => {
     const { activeFlowId, flows } = get();
     const flow = flows[activeFlowId];
     if (!flow || flow.execution.isRunning) return;
+    if (getExecutingFlowId()) return;
 
-    const flowId = activeFlowId; // capture for closure
+    const ws = getWebSocketManager();
+    if (!ws.isConnected) {
+      toastError("Cannot execute: not connected to server");
+      return;
+    }
+
+    const flowId = activeFlowId;
     const { nodes, edges, execution } = flow;
 
     // Compute which nodes need to execute:
@@ -586,90 +598,17 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
 
     emitEditorEvent("execution:started", { flowId });
 
-    // Filter to downstream nodes only, but pass ALL edges
-    // so the runner can resolve upstream references via cachedOutputs
-    const subNodes = nodes.filter((n) => downstreamIds.has(n.id));
-
-    const onStatus = (
-      nodeId: string,
-      status: NodeExecutionStatus,
-      output?: NodeOutput
-    ) => {
-      // Always read fresh state — flow might have been modified/switched
-      const currentFlow = get().flows[flowId];
-      if (!currentFlow) return; // flow was closed during execution
-
-      const newNodeStatus = {
-        ...currentFlow.execution.nodeStatus,
-        [nodeId]: status,
-      };
-      const newNodeOutputs = output
-        ? { ...currentFlow.execution.nodeOutputs, [nodeId]: output }
-        : currentFlow.execution.nodeOutputs;
-
-      // When a textOutput node completes, push the text into node.data
-      let newNodes = currentFlow.nodes;
-      if (status === "complete" || status === "error") {
-        const node = currentFlow.nodes.find((n) => n.id === nodeId);
-        if (node?.type === "textOutput" && output?.text) {
-          newNodes = currentFlow.nodes.map((n) =>
-            n.id === nodeId
-              ? { ...n, data: { ...n.data, text: output.text } }
-              : n
-          );
-        }
-      }
-
-      set({
-        flows: patchFlow(get().flows, flowId, {
-          nodes: newNodes,
-          execution: {
-            ...currentFlow.execution,
-            nodeStatus: newNodeStatus,
-            nodeOutputs: newNodeOutputs,
-          },
-        }),
-      });
-
-      emitEditorEvent("execution:node-status", {
-        flowId,
-        nodeId,
-        status,
-        output,
-      });
-    };
-
-    try {
-      await executeGraph(
-        subNodes,
-        edges,
-        execution.providerId,
-        onStatus,
-        preservedOutputs
-      );
-      emitEditorEvent("execution:completed", { flowId });
-      toastSuccess("Pipeline completed");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Execution failed";
-      const currentFlow = get().flows[flowId];
-      if (currentFlow) {
-        set({
-          flows: patchFlow(get().flows, flowId, {
-            execution: { ...currentFlow.execution, globalError: msg },
-          }),
-        });
-      }
-      emitEditorEvent("execution:error", { flowId, error: msg });
-    } finally {
-      const currentFlow = get().flows[flowId];
-      if (currentFlow) {
-        set({
-          flows: patchFlow(get().flows, flowId, {
-            execution: { ...currentFlow.execution, isRunning: false },
-          }),
-        });
-      }
-    }
+    // Send to server — status updates come back via WS event handlers
+    // in execution-bridge.ts (completion, error, isRunning=false all handled there)
+    sendRemoteExecution(
+      ws,
+      flowId,
+      nodes,
+      edges,
+      execution.providerId,
+      triggerNodeId,
+      Object.keys(preservedOutputs).length > 0 ? preservedOutputs : undefined,
+    );
   },
 
   // --- Tab management ---
@@ -689,6 +628,11 @@ export const useFlowStore = create<FlowStoreState>((set, get) => ({
   },
 
   closeFlow: (flowId: string) => {
+    // If closing the executing flow, clear bridge tracking to prevent stale state
+    if (flowId === getExecutingFlowId()) {
+      clearExecutionTracking();
+    }
+
     const state = get();
     const newFlowIds = state.flowIds.filter((id) => id !== flowId);
     const newFlows = { ...state.flows };

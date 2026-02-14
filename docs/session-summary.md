@@ -1,105 +1,78 @@
-# Session Summary — 2026-02-14 (Session 11)
+# Session Summary — 2026-02-14 (Session 13)
 
-## Theme: Adapter Handle UX + Character Lock-Follow + Ghost Auto-Connect
+## Theme: Fix WS "not connected" after login (Session 12 blocker)
 
-Improved adapter handle management (double-click removal, edge-delete cleanup, ghost auto-connect), added lock-follow behavior on ConsistentCharacter nodes, and removed the MiniMap.
-
----
-
-## 1. Adapter Handle Double-Click Removal
-
-Red adapter handles on the top of nodes can now be removed by double-clicking them.
-
-### Store action: `removeAdapter(nodeId, adapterIndex)`
-
-- Finds the edge targeting `adapter-{index}` on the node and removes it
-- Re-indexes all higher adapter edges (e.g. `adapter-3` → `adapter-2`)
-- Decrements `adapterCount` in node data
-
-### BaseNode changes
-
-- New prop: `onAdapterRemove?: (adapterIndex: number) => void`
-- Adapter handles gain `onDoubleClick` handler and `hover:!bg-red-400` highlight when removal is enabled
-- Wired in all 4 adapter-supporting nodes: InitialPromptNode, PromptEnhancerNode, StoryTellerNode, PersonasReplacerNode
+Resolved the top-priority bug from Session 12: the toast "Cannot execute: not connected to server" appearing even after successful login and WebSocket connection.
 
 ---
 
-## 2. Adapter Edge Selection + Backspace Cleanup
+## Root Cause
 
-When a user selects an adapter edge and presses Backspace/Delete, the adapter handle is also cleaned up (not just the edge).
+**React 18 Strict Mode double-invokes `useMemo` factories in development.**
 
-### Enhanced `onEdgesChange` in flow-store
+Next.js 13+ enables `reactStrictMode: true` by default. This causes `useMemo(() => bootstrap(), [])` in `AppProviders` to call `bootstrap()` **twice**:
 
-- Detects adapter edge removals (edges with `targetHandle` matching `adapter-*`)
-- Groups removals by target node, sorts indices descending to avoid re-index conflicts
-- Re-indexes remaining higher adapters and decrements `adapterCount`
-- Works for both direct edge deletion and double-click edge removal
+1. **First call** → Container A created → WS Manager A resolved → `setWebSocketManagerInstance(wsManagerA)` set as module singleton
+2. **Second call** → Container B created → WS Manager B resolved → `setWebSocketManagerInstance(wsManagerB)` **overwrites the singleton**
 
----
+React keeps Container A (from the first call) as the memoized value. So:
+- `AppProviders.useEffect` resolves **Manager A** from Container A → connects it → pings work
+- `getWebSocketManager()` returns **Manager B** (the overwritten singleton) → never connected → `state = "disconnected"`
 
-## 3. MiniMap Removed
+This affected ALL backward-compat singletons: `eventBus`, `undoManager`, `executorManager`, `editorManager`, `wsManager`.
 
-Removed the `<MiniMap>` component and its import from `page.tsx`. Only `<Controls>` remain.
+### Diagnostic Evidence
 
----
-
-## 4. ConsistentCharacter Lock-Follow
-
-A lock/unlock icon appears on ConsistentCharacter nodes when they are connected to a downstream node.
-
-### Lock toggle
-- Positioned top-right outside the node container (`absolute -top-3 -right-3`)
-- Only visible when the node has an outgoing `adapter-out` edge (`isConnected` selector)
-- Stores `data.adapterLocked` boolean in node data
-
-### Drag-follow behavior (page.tsx)
-- `onNodeDragStart`: captures all locked character nodes connected to the dragged node + their starting positions
-- `onNodeDrag`: applies position delta to all companion nodes
-- `onNodeDragStop`: clears companion refs
-- Uses `dragStartRef` and `dragCompanionsRef` refs
+Added temporary `console.log` statements to trace the issue:
+- `[runFromNode] WS state: disconnected` — store sees disconnected manager (Manager B)
+- `[websocket] → ping {}` — pings going through on a different instance (Manager A)
+- No `[AppProviders.sync]` log near the error — sync ran on Manager A, not B
 
 ---
 
-## 5. Ghost Adapter Auto-Connect
+## Fix
 
-Dragging a connector from a character node and dropping it on the ghost "+" button automatically creates a new adapter handle and connects them.
+**File:** `src/modules/bootstrap.ts`
 
-### Store action: `connectToGhostAdapter(sourceNodeId, sourceHandle, targetNodeId)`
-- Atomically increments `adapterCount` and creates the edge in a single store update
+Added a module-level idempotency guard:
 
-### page.tsx wiring
-- `onConnectStart`: captures source node ID and handle in a ref
-- `onConnectEnd`: uses `document.elementFromPoint()` to detect drops on elements with `[data-ghost-adapter]` attribute
-- Walks up the DOM to find the closest React Flow node wrapper, extracts the node ID
-- Calls `connectToGhostAdapter` if a valid ghost target is found
+```typescript
+let _container: Container | null = null;
 
-### BaseNode change
-- Added `data-ghost-adapter` HTML attribute to the ghost "+" button for DOM detection
+export function bootstrap(): Container {
+  if (_container) {
+    log.info("bootstrap() already called — returning existing container");
+    return _container;
+  }
+
+  const container = new Container();
+  // ... all registrations + wiring (unchanged) ...
+
+  _container = container;
+  return container;
+}
+```
+
+This ensures the second Strict Mode invocation returns the **same** container — no new instances, no overwritten singletons, no duplicate event wiring.
 
 ---
 
 ## Files Modified This Session
 
 ```
-src/store/flow-store.ts                              # Added removeAdapter, connectToGhostAdapter, enhanced onEdgesChange
-src/components/nodes/BaseNode.tsx                     # Added onAdapterRemove prop, data-ghost-adapter attr, double-click on handles
-src/components/nodes/InitialPromptNode.tsx            # Wired removeAdapter
-src/components/nodes/PromptEnhancerNode.tsx           # Wired removeAdapter
-src/components/nodes/StoryTellerNode.tsx              # Wired removeAdapter
-src/components/nodes/PersonasReplacerNode.tsx         # Wired removeAdapter
-src/components/nodes/ConsistentCharacterNode.tsx      # Added lock toggle (position, visibility, adapterLocked state)
-src/app/image-genai/page.tsx                          # Removed MiniMap, added drag-follow refs/callbacks, added onConnectStart/End
-docs/QUICKSTART.md                                    # Updated adapter docs, keyboard shortcuts, UI features
-docs/session-summary.md                               # This file
+src/modules/bootstrap.ts                           # Added _container idempotency guard
+docs/QUICKSTART.md                                 # Documented idempotency guard in DI section
+docs/session-summary.md                            # This file
 ```
 
 ---
 
 ## Pending / Next Session
 
-- Rewire `flow-loader.ts` to load flows from FastAPI backend (still hits dead `/api/flows`)
-- Build backend `GET /api/v1/flows` endpoint for listing/loading flows
+- Clean up dead code: `runner.ts`, executors, `ExecutorManager`, `buildExecutionPlan`, `resolveModelForNode`
 - Wire `flow:closed` handler in event-wiring.ts (cancel pending saves + clear undo history)
 - Add `cancelSave(flowId)` to auto-save scheduler
 - Rewire `characters.ts` to FastAPI backend
 - Loading component fields/ports/api-config for full node configuration from backend
+- Incremental migration of consumers from proxy imports to `useService()` hook
+- AI provider strategy (evaluating fal.ai, Fireworks, Together AI)

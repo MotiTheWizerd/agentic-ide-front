@@ -70,6 +70,9 @@ export class WebSocketManager {
    * If already connected, disconnects first.
    */
   connect(tokenResolver: () => string | null): void {
+    // Always clear pending reconnect timers to prevent stale attempts
+    this.clearReconnectTimer();
+
     if (this.ws) {
       this.log.warn("connect() called while already connected — disconnecting first");
       this.internalDisconnect();
@@ -170,7 +173,7 @@ export class WebSocketManager {
 
     this.setState("connecting");
     const url = `${WS_CONFIG.baseUrl}${WS_CONFIG.path}?token=${encodeURIComponent(token)}`;
-    this.log.info(`Connecting…`);
+    this.log.info(`Connecting to ${WS_CONFIG.baseUrl}${WS_CONFIG.path}`);
 
     try {
       this.ws = new WebSocket(url);

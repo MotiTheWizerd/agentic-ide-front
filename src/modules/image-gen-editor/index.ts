@@ -21,6 +21,17 @@ export type { EventMap, EditorEventBus } from "./event-bus";
 // ---- Event Wiring (single source of truth for subscriptions) ----
 export { wireEditorEvents, teardownEditorEvents } from "./event-wiring";
 
+// ---- Execution Bridge (WS-based remote execution) ----
+export {
+  sendRemoteExecution,
+  wireExecutionWs,
+  teardownExecutionWs,
+  getExecutingFlowId,
+  clearExecutionTracking,
+  mapOutputToCamel,
+  mapOutputToSnake,
+} from "./execution-bridge";
+
 // ---- Subsystems ----
 export { AutoSaveManager } from "./auto-save";
 export { UndoManager, undoManager, setUndoManagerInstance } from "./undo-manager";

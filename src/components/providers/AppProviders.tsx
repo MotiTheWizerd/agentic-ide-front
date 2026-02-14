@@ -29,7 +29,10 @@ export function AppProviders({ children }: { children: ReactNode }) {
     const sync = () => {
       const user = useUserStore.getState().user;
       if (user) {
-        if (wsManager.state === "disconnected") {
+        // Use !== "connected" (not === "disconnected") so we also handle
+        // the "connecting" state — e.g. when reconnecting with a stale token
+        // after a fresh login provides a new one.
+        if (wsManager.state !== "connected") {
           wsManager.connect(() => getAccessToken());
         }
       } else {

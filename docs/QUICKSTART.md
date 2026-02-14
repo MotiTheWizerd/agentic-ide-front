@@ -132,9 +132,8 @@ src/app/
 │  Single wiring point — all services + dependencies  │
 │  ┌──────────┐ ┌─────────────┐ ┌──────────────────┐ │
 │  │ EventBus │ │ AutoSave    │ │ EditorManager    │ │
-│  │          │ │ UndoManager │ │ ExecutorManager  │ │
-│  │          │ │ GraphManager│ │ ProjectService   │ │
-│  │          │ │             │ │ ComponentService │ │
+│  │ WS Mgr   │ │ UndoManager │ │ ProjectService   │ │
+│  │          │ │ GraphManager│ │ ComponentService │ │
 │  └──────────┘ └─────────────┘ └──────────────────┘ │
 └─────────────────┬───────────────────────────────────┘
                   │ <DIProvider> + useService()
@@ -151,17 +150,17 @@ src/app/
 │  │  Node   │                                        │
 │  └─────────┘                                        │
 └─────────────────┬───────────────────────────────────┘
-                  │ execute()
+                  │ runFromNode() → WS send
                   ▼
 ┌─────────────────────────────────────────────────────┐
-│  Execution Engine                                   │
-│  1. Kahn's topological sort (graph/)                │
-│  2. Sequential execution (runner.ts)                │
-│  3. Executor registry lookup (executor/)            │
-│  4. Per-node model resolution (model-defaults.ts)   │
-│  5. API calls to Next.js routes → AI providers      │
+│  WebSocket Execution Bridge                         │
+│  1. Sends execution.start (graph + cached outputs)  │
+│  2. Backend runs pipeline (topological sort, AI)    │
+│  3. Streams node status events back via WS          │
+│  4. execution-bridge.ts routes events → store       │
+│  5. snake_case ↔ camelCase mapping for NodeOutput   │
 └─────────────────┬───────────────────────────────────┘
-                  │ status callbacks
+                  │ status events
                   ▼
 ┌─────────────────────────────────────────────────────┐
 │  Event Bus (event-bus.ts + event-wiring.ts)         │
@@ -195,12 +194,13 @@ src/app/
 | Component Service| `src/modules/image-gen-editor/editor-manager/component-service.ts` | Fetch component registry from backend, group by category |
 | Auto-Save        | `src/modules/image-gen-editor/auto-save/`            | Debounced persistence via axios to FastAPI backend               |
 | Undo Manager     | `src/modules/image-gen-editor/undo-manager/`         | Per-flow undo/redo (history stack, snapshot scheduler)            |
-| Execution Engine | `src/modules/image-gen-editor/engine/`               | Graph analysis, sequential node execution, executor registry     |
-| Graph Manager    | `src/modules/image-gen-editor/engine/graph/`         | Topological sort, edge classification, BFS traversal             |
-| Executor Manager | `src/modules/image-gen-editor/engine/executor/`      | Registry of node executor functions by type                      |
-| Model Defaults   | `src/modules/image-gen-editor/model-defaults.ts`     | Per-node-type default provider + model assignments               |
+| Execution Bridge | `src/modules/image-gen-editor/execution-bridge.ts`   | WS-based remote execution: send graph, receive status events, case mapping |
+| Execution Engine | `src/modules/image-gen-editor/engine/`               | Graph analysis types, BFS traversal (execution now server-side)  |
+| Graph Manager    | `src/modules/image-gen-editor/engine/graph/`         | BFS traversal (upstream/downstream), topological sort types      |
+| WebSocket Mgr    | `src/modules/websocket/WebSocketManager.ts`          | WS connection lifecycle, auto-reconnect, ping/pong, pub/sub     |
+| WS React Hook    | `src/hooks/useWebSocket.ts`                          | `useWebSocket()` → `{ on, send, isConnected }`                  |
 | Event Bus (editor) | `src/modules/image-gen-editor/event-bus.ts`        | Domain EventMap, BasePayload (userId), emitEditorEvent() helper  |
-| Event Wiring     | `src/modules/image-gen-editor/event-wiring.ts`       | Single source of truth for all event subscriptions               |
+| Event Wiring     | `src/modules/image-gen-editor/event-wiring.ts`       | Single source of truth for all EventBus subscriptions            |
 | **Shared (lib)** | `src/lib/`                                           | General utilities and AI provider infrastructure                 |
 | Branding         | `src/lib/constants.ts`                               | Centralized product name, tagline, description                   |
 | Auth             | `src/lib/auth.ts`                                    | Token storage helpers (get, set, clear, isAuthenticated)         |
@@ -335,18 +335,38 @@ Nodes are the building blocks of a flow. Each node has typed input/output handle
 
 ---
 
-## Execution Engine
+## Execution Engine (WebSocket-based)
 
-When you click **Run**, the engine:
+Execution is handled by the **FastAPI backend** via WebSocket. The frontend sends the graph and receives real-time status events.
 
-1. **Topological Sort** — Kahn's algorithm (`graph/topological-sort.ts`) builds an execution plan. Groups are excluded. Cycles are detected and rejected. Edge classification (`graph/edge-classification.ts`) separates text inputs from adapter inputs.
-2. **Sequential Execution** — `runner.ts` iterates the sorted plan. For each node:
-   - Resolves the effective provider + model via `resolveModelForNode()` (priority: node override → node-type default → global provider)
-   - Gathers text inputs from upstream edges and adapter inputs from adapter edges
-   - Looks up the executor via `executorManager.get(nodeType)` and calls it
-   - Calls `onStatus(nodeId, status, output)` for every state transition
-3. **Status Flow** — Each node transitions through: `idle → pending → running → complete/error/skipped`
-4. **Error Propagation** — If an upstream node errors, all downstream nodes in the chain are marked `error` with "Upstream node failed"
+When you click **Run** on a node:
+
+1. **Frontend pre-processing** (`flow-store.ts` → `runFromNode`):
+   - Computes downstream + unexecuted upstream nodes (graph traversal)
+   - Clears downstream textOutput data for immediate visual feedback
+   - Preserves status/outputs for nodes outside the execution set
+   - Sets `isRunning = true`, emits `execution:started`
+
+2. **WebSocket send** (`execution-bridge.ts` → `sendRemoteExecution`):
+   - Packages nodes (id, type, data), edges (connectivity), providerId, triggerNodeId
+   - Converts cached outputs to snake_case for the backend
+   - Sends `execution.start` message over WebSocket
+
+3. **Backend pipeline** (FastAPI):
+   - Topological sort, cycle detection, model resolution
+   - Sequential node execution with AI provider calls
+   - Streams per-node status events back via WebSocket
+
+4. **Frontend event handling** (`execution-bridge.ts` → `wireExecutionWs`):
+   - `execution.node.status` → updates nodeStatus (pending/running/skipped)
+   - `execution.node.completed` → maps output snake→camel, updates store + textOutput data
+   - `execution.node.failed` → sets error status
+   - `execution.completed` → sets `isRunning = false`, merges final outputs, toast
+   - `execution.failed` → sets globalError, toast error
+   - WS disconnect → graceful error recovery
+
+5. **Status Flow** — Each node transitions through: `idle → pending → running → complete/error/skipped`
+6. **Error Propagation** — If an upstream node errors, all downstream nodes in the chain are marked `error`
 
 ### Adapter Handles
 
@@ -466,10 +486,15 @@ src/
 │   │   └── logger/
 │   │       ├── Logger.ts                   # Colored console logger with module prefix
 │   │       └── index.ts
+│   ├── websocket/                           # WebSocket infrastructure (domain-agnostic)
+│   │   ├── WebSocketManager.ts             # Singleton: connect, reconnect, ping/pong, pub/sub
+│   │   ├── types.ts                        # WSMessage, WSConfig, connection state types
+│   │   └── index.ts                        # Barrel + backward-compat singleton (get/set)
 │   └── image-gen-editor/                   # Image-gen editor module (single responsibility)
 │       ├── index.ts                        # Barrel export (public API surface)
 │       ├── event-bus.ts                    # Domain EventMap, BasePayload, emitEditorEvent() helper
 │       ├── event-wiring.ts                # Single source of truth for all event subscriptions
+│       ├── execution-bridge.ts             # WS execution bridge: send, receive, case mapping
 │       ├── model-defaults.ts               # Per-node-type model assignments
 │       ├── scene-prompts.ts                # Scene prompt composition from dropdown values
 │       ├── image-utils.ts                  # Image processing utilities
@@ -783,14 +808,16 @@ The app uses a lightweight custom DI container (no external library). All servic
 
 - **Factory-based registration**: each service is created via a factory that receives the container
 - **Lazy singletons**: instances are created on first `resolve()`, cached forever
+- **Idempotent bootstrap**: module-level `_container` guard ensures `bootstrap()` runs exactly once, even when React 18 Strict Mode double-invokes `useMemo` factories
 - **No decorators / reflect-metadata**: works cleanly with Next.js + React
 - **Symbol-based tokens**: unique, debuggable, zero collision risk
 
-### Registered Services (10 tokens)
+### Registered Services (11 tokens)
 
 | Token | Class | Scope | Dependencies |
 | ----- | ----- | ----- | ------------ |
 | `TOKENS.EventBus` | `EventBus<EventMap>` | Singleton | None (leaf) |
+| `TOKENS.WebSocketManager` | `WebSocketManager` | Singleton | Logger |
 | `TOKENS.GraphManager` | `GraphManager` | Singleton | None (stateless) |
 | `TOKENS.ExecutorManager` | `ExecutorManager` | Singleton | Logger |
 | `TOKENS.UndoManager` | `UndoManager` | Singleton | None (self-contained) |
@@ -805,13 +832,18 @@ The app uses a lightweight custom DI container (no external library). All servic
 
 ```
 App loads → layout.tsx renders <AppProviders>
-  → AppProviders calls bootstrap() once (useMemo)
-    → Container created, all 10 factories registered
-    → Backward-compat singletons eagerly resolved
-    → wireEditorEvents() subscribes all event handlers
+  → AppProviders calls bootstrap() via useMemo
+    → Idempotency guard: if already called, returns existing container
+    → Container created, all 11 factories registered
+    → Backward-compat singletons eagerly resolved (EventBus, UndoManager, WS Manager, etc.)
+    → wireEditorEvents() subscribes EventBus handlers
+    → wireExecutionWs() subscribes WS execution event handlers
+  → AppProviders useEffect connects WebSocket when user is authenticated
   → <DIProvider container={container}> wraps the app
     → Components use useService<T>(TOKENS.X) to resolve services
 ```
+
+> **Note:** The idempotency guard is critical. React 18 Strict Mode (enabled by default in Next.js 13+) double-invokes `useMemo` factories in development. Without the guard, a second Container would be created and its backward-compat singletons would overwrite the first set — leaving the module-level `getWebSocketManager()`, `eventBus`, etc. pointing to orphaned, never-connected instances.
 
 ### Usage in Components
 

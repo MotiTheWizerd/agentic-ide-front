@@ -14,12 +14,13 @@
 
 import { Container, TOKENS } from "@/modules/core/di";
 import { EventBus, Logger } from "@/modules/core";
-import { WebSocketManager } from "@/modules/websocket";
+import { WebSocketManager, setWebSocketManagerInstance } from "@/modules/websocket";
 
 // Domain types & classes
 import type { EventMap } from "@/modules/image-gen-editor/event-bus";
 import { setEventBusInstance } from "@/modules/image-gen-editor/event-bus";
 import { wireEditorEvents } from "@/modules/image-gen-editor/event-wiring";
+import { wireExecutionWs } from "@/modules/image-gen-editor/execution-bridge";
 import { AutoSaveManager } from "@/modules/image-gen-editor/auto-save";
 import { UndoManager, setUndoManagerInstance } from "@/modules/image-gen-editor/undo-manager";
 import { ExecutorManager, setExecutorManagerInstance } from "@/modules/image-gen-editor/engine/executor";
@@ -33,11 +34,21 @@ import { setEditorManagerInstance } from "@/modules/image-gen-editor/editor-mana
 
 const log = new Logger("bootstrap");
 
+// Idempotency guard — React 18 Strict Mode double-invokes useMemo factories,
+// which would create a second Container and overwrite backward-compat singletons
+// with orphaned instances that never get connected/wired.
+let _container: Container | null = null;
+
 /**
  * Create and wire the DI container.
  * Each registration is a lazy factory — instances are created on first resolve().
  */
 export function bootstrap(): Container {
+  if (_container) {
+    log.info("bootstrap() already called — returning existing container");
+    return _container;
+  }
+
   const container = new Container();
 
   // ---- Tier 1: Core infrastructure (zero deps) ----
@@ -119,10 +130,17 @@ export function bootstrap(): Container {
   setExecutorManagerInstance(container.resolve<ExecutorManager>(TOKENS.ExecutorManager));
   setEditorManagerInstance(container.resolve<ImageGenEditorManager>(TOKENS.EditorManager));
 
+  const wsManager = container.resolve<WebSocketManager>(TOKENS.WebSocketManager);
+  setWebSocketManagerInstance(wsManager);
+
   // ---- Wire event subscriptions (single source of truth) ----
   wireEditorEvents(container.resolve<EventBus<EventMap>>(TOKENS.EventBus));
 
+  // ---- Wire execution WS event handlers ----
+  wireExecutionWs(wsManager);
+
   log.info("Bootstrap complete — all services registered");
 
+  _container = container;
   return container;
 }
