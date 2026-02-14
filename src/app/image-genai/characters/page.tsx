@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { prepareImageForAPI } from "@/lib/image-utils";
+import {
+  prepareImageForAPI,
+  type Character,
+  getCharacters,
+  saveCharacter,
+  deleteCharacter,
+} from "@/modules/image-gen-editor";
 import {
   UserRound,
   Plus,
@@ -10,12 +16,6 @@ import {
   X,
   Upload,
 } from "lucide-react";
-import {
-  type Character,
-  getCharacters,
-  saveCharacter,
-  deleteCharacter,
-} from "@/lib/characters";
 import { ProviderSelect } from "@/components/shared/ProviderSelect";
 
 export default function CharactersPage() {

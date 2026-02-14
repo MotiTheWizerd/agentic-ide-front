@@ -1,148 +1,143 @@
-# Session Summary — 2026-02-14
+# Session Summary — 2026-02-14 (Session 5)
 
-## 1. GLM Provider Endpoint Migration
+## Theme: Backoffice Admin Area
 
-Updated the GLM (Zhipu AI) text provider base URL from the old BigModel endpoint to the new Z.AI endpoint.
-
-### Changes
-
-- `src/lib/providers.ts` — `baseURL` changed from `https://open.bigmodel.cn/api/paas/v4` to `https://api.z.ai/api/coding/paas/v4`
+Built the complete backoffice section — login page, isolated auth, protected dashboard layout with sidebar, and a creative dashboard page with mock data.
 
 ---
 
-## 2. GLM-Image Native Provider
+## 1. Backoffice Auth (Isolated from Main App)
 
-Added GLM-Image as a standalone image generation provider using the Z.AI native API, replacing the previous HuggingFace fal-ai router approach.
+### New File: `src/lib/backoffice-auth.ts`
 
-### New Provider
+Mirrors `src/lib/auth.ts` with separate localStorage keys so admin and user sessions are fully independent.
 
-- **Endpoint:** `POST https://api.z.ai/api/paas/v4/images/generations`
-- **Model:** `glm-image`
-- **Auth:** `GLM_API_KEY` (same key as text provider)
-- **Default size:** 1280x1280
-- **Response handling:** API returns an image URL → provider downloads and converts to base64 data URL
-
-### Changes
-
-- `src/lib/image-providers.ts`:
-  - Added `glmImage` provider with Z.AI native API integration
-  - Registered as `"glm-image"` in `imageProviderRegistry`
-  - Removed `zai-org/GLM-Image` from HuggingFace models list
-  - Cleaned up empty `MODEL_ROUTER_PROVIDER` map (fal-ai entry removed)
+| Function | Key | Purpose |
+| -------- | --- | ------- |
+| `getBoAccessToken()` | `bo_access_token` | Retrieve admin access token |
+| `getBoRefreshToken()` | `bo_refresh_token` | Retrieve admin refresh token |
+| `setBoTokens()` | both | Store admin token pair |
+| `clearBoTokens()` | both | Remove admin tokens (logout) |
+| `isBoAuthenticated()` | `bo_access_token` | Check if admin is logged in |
 
 ---
 
-## 3. Removed Global Provider Selector from Editor Header
+## 2. Backoffice Login Page
 
-The global ProviderSelect dropdown in the editor header was dead code — every AI node type already has its own default provider in `model-defaults.ts`, so the global fallback was never reached.
+### New File: `src/app/backoffice/login/page.tsx`
 
-### Changes
+- Same dark theme card layout as main `/login` page
+- Shield icon + "Backoffice" / "Admin Panel" branding
+- "Back to main app" link (instead of "Back to home")
+- No "Sign Up" link (admin accounts only)
+- Sends `{ identifier, password }` to `POST /api/v1/auth/backoffice/login` via axios
+- Error handling supports both string and Pydantic array `detail` responses
+- On success: stores tokens via `setBoTokens()`, redirects to `/backoffice`
 
-- `src/app/image-genai/page.tsx` — removed `<ProviderSelect>` from header, removed `setProviderId` destructure
-- `src/store/flow-store.ts` — removed `setProviderId` action (type declaration + implementation)
-- `ProviderSelect` component file kept — still used by characters and prototype pages
+### Root Layout: `src/app/backoffice/layout.tsx`
 
----
-
-## 4. Created GeneralDropdown Reusable Component
-
-Replaced the domain-specific `ProviderModelSelect` with a generic, reusable dropdown component.
-
-### New File
-
-- `src/components/shared/GeneralDropdown.tsx`
-  - Pure presentation — takes `options: {value, label}[]`, `value`, `onChange`
-  - Optional `placeholder`, `className`, `popoverWidth`
-  - Built on Radix Popover + cmdk Command (same look as before)
-  - Zero data fetching, zero domain knowledge
-
-### Changes
-
-- `src/components/nodes/NodeSettingsPopover.tsx` — refactored to use two `GeneralDropdown` instances directly (provider + model), owns its own data fetching with module-level cache
-
-### Deleted
-
-- `src/components/shared/ProviderModelSelect.tsx` — replaced by direct `GeneralDropdown` usage
+Minimal dark wrapper (`bg-gray-950 text-white`) — no sidebar or auth guard, so the login page renders cleanly.
 
 ---
 
-## 5. Project Selector + Create Project Modal
+## 3. Backoffice Dashboard Layout
 
-Added project management to the editor header — a project dropdown and a "new project" button that opens a creation modal.
+### New File: `src/app/backoffice/(dashboard)/layout.tsx`
 
-### New File
+Protected layout using `(dashboard)` Next.js route group:
+- Auth guard: `isBoAuthenticated()` → redirect to `/backoffice/login`
+- Structure: `h-screen flex` → BackofficeSidebar + (header + main content)
+- Header: Shield icon + "Backoffice" gradient text + "Admin" avatar
+- Reuses `GradientText` from `src/components/landing/gradient-text.tsx`
 
-- `src/components/shared/Modal.tsx`
-  - Reusable modal with blurry backdrop (`backdrop-blur-sm`)
-  - Fade-in/out animation (opacity + scale, 200ms)
-  - Click-outside and Escape to close
-  - Optional title with X button, `children` slot for any content
-
-### Changes
-
-- `src/app/image-genai/page.tsx`:
-  - Added project dropdown (`GeneralDropdown`) to editor header with "Select project" as permanent first option
-  - Added `+` button to open create project modal
-  - Project management now delegated to EditorManager (see item 7)
+### Route Group Behavior
+- `/backoffice/login` → minimal root layout (no sidebar/header)
+- `/backoffice` → protected layout with sidebar + header + auth guard
+- `(dashboard)` doesn't appear in the URL
 
 ---
 
-## 6. `editor:status` Event
+## 4. BackofficeSidebar Component
 
-Added a new event to the typed event bus for tracking whether the editor is active or disabled based on project selection.
+### New File: `src/components/backoffice/backoffice-sidebar.tsx`
 
-### Changes
+Same pattern as `MainSidebar` — icon-only vertical sidebar (w-14) with hover tooltips.
 
-- `src/lib/event-bus.ts` — added `"editor:status": { status: "disabled" | "active" }` to the `EventMap`
-- Emitted by EditorManager when project selection changes
+| Icon | Label | Route | Color |
+| ---- | ----- | ----- | ----- |
+| LayoutDashboard | Dashboard | `/backoffice` | blue |
+| Users | Users | `/backoffice/users` | emerald |
+| FolderKanban | Projects | `/backoffice/projects` | amber |
+| BarChart3 | Analytics | `/backoffice/analytics` | fuchsia |
+| Settings2 | Settings | `/backoffice/settings` | gray |
+| LogOut | Sign Out | → `/backoffice/login` | red (hover) |
+
+- Logout calls `clearBoTokens()` (doesn't affect main app tokens)
+- Active state: exact match for `/backoffice`, prefix match for others
 
 ---
 
-## 7. EditorManager Module
+## 5. Backoffice Dashboard Page
 
-Extracted editor lifecycle responsibilities from the React component into a dedicated Zustand micro-store, following the existing `user-store.ts` pattern.
+### New File: `src/app/backoffice/(dashboard)/page.tsx`
 
-### New File
+Creative dashboard with mock/static data (UI shell — ready for backend wiring):
 
-- `src/lib/editor-manager.ts`
-  - **State:** `editorStatus` (`"disabled"` / `"active"`), `projects`, `activeProjectId`, `initialized`, `loading`
-  - **Actions:**
-    - `init(userId)` — one-time setup: auto-save init, project fetch, flow loading from persistence, nodeId counter sync
-    - `selectProject(projectId)` — updates active project + emits `editor:status` event
-    - `createProject(name, userId)` — POST to backend, appends to list, auto-selects
-  - **Exported utility:** `getNextNodeId()` — replaces the module-level `nodeId++` counter that was in page.tsx
+**Welcome Banner** — "Welcome back, Admin" + formatted current date
 
-### Changes
+**Stats Cards (4-column grid):**
+| Stat | Icon | Color | Mock Value |
+| ---- | ---- | ----- | ---------- |
+| Total Users | Users | blue | 1,247 (+12%) |
+| Active Projects | FolderKanban | emerald | 38 (+4%) |
+| Flows Created | Workflow | amber | 156 (+23%) |
+| API Calls Today | Activity | fuchsia | 12,891 (+8%) |
 
-- `src/app/image-genai/page.tsx`:
-  - Removed ~80 lines: project useState, project fetch useEffect, editor:status useEffect, auto-save + flow loading useEffect, `nodeId` counter
-  - Added ~10 lines: `useEditorManager` selectors + single `init()` call on mount + `getNextNodeId()` in onDrop
-  - Removed imports: `api`, `eventBus`, `initAutoSave`, `FlowData`
-  - Added imports: `useEditorManager`, `getNextNodeId` from `editor-manager`
+**Recent Activity** — 6-item feed with icons, descriptions, timestamps
+
+**Quick Actions** — 4 admin shortcut buttons (Manage Users, View Logs, API Usage, System Settings)
+
+---
+
+## 6. Auth Field Change: `email` → `identifier`
+
+Both login pages now send `{ identifier, password }` instead of `{ email, password }` to match the updated backend schema (accepts email or username).
+
+### Files Changed
+
+| File | Endpoint | Change |
+| ---- | -------- | ------ |
+| `src/app/(public)/login/page.tsx` | `/auth/login` | `email` → `identifier: email` |
+| `src/app/backoffice/login/page.tsx` | `/auth/backoffice/login` | `email` → `identifier: email` |
+
+---
+
+## 7. Updated QUICKSTART.md
+
+- Expanded backoffice routing tree with `(dashboard)/` route group
+- Added `backoffice/(dashboard)` to Route Groups table
+- Added BackofficeSidebar section to Sidebar Navigation
+- Added Backoffice Authentication Flow section
+- Updated project structure tree with backoffice components
+- Updated auth flow to describe `identifier` field
 
 ---
 
 ## Files Created This Session
 
-| File | Purpose |
-| ---- | ------- |
-| `src/components/shared/GeneralDropdown.tsx` | Reusable dropdown (value/label, Radix popover + cmdk) |
-| `src/components/shared/Modal.tsx` | Reusable modal with blurry backdrop + fade animation |
-| `src/lib/editor-manager.ts` | Editor lifecycle manager (Zustand micro-store) |
+```
+src/lib/backoffice-auth.ts                          # Isolated admin token helpers
+src/app/backoffice/layout.tsx                       # Root wrapper (minimal)
+src/app/backoffice/login/page.tsx                   # Admin login page
+src/app/backoffice/(dashboard)/layout.tsx           # Protected layout (sidebar + header)
+src/app/backoffice/(dashboard)/page.tsx             # Dashboard home page
+src/components/backoffice/backoffice-sidebar.tsx     # Admin sidebar component
+```
 
 ## Files Modified This Session
 
-| File | Change |
-| ---- | ------ |
-| `src/lib/providers.ts` | GLM base URL → `https://api.z.ai/api/coding/paas/v4` |
-| `src/lib/image-providers.ts` | Added GLM-Image native provider, removed from HuggingFace |
-| `src/lib/event-bus.ts` | Added `editor:status` event type |
-| `src/app/image-genai/page.tsx` | Removed ProviderSelect, project/init code → EditorManager |
-| `src/store/flow-store.ts` | Removed `setProviderId` action |
-| `src/components/nodes/NodeSettingsPopover.tsx` | Refactored to use GeneralDropdown directly |
-
-## Files Deleted This Session
-
-| File | Reason |
-| ---- | ------ |
-| `src/components/shared/ProviderModelSelect.tsx` | Replaced by GeneralDropdown |
+```
+src/app/(public)/login/page.tsx                     # email → identifier
+docs/QUICKSTART.md                                  # Backoffice docs
+docs/session-summary.md                             # This file
+```

@@ -26,8 +26,8 @@
       "id": "initialPrompt-119",
       "type": "initialPrompt",
       "position": {
-        "x": 237.06011398375222,
-        "y": 291.40108090760236
+        "x": 399.4948965924479,
+        "y": 98.87934177716755
       },
       "data": {
         "label": "initialPrompt",
@@ -58,7 +58,7 @@
         "width": 230,
         "height": 152
       },
-      "selected": true,
+      "selected": false,
       "dragging": false
     },
     {
@@ -103,8 +103,8 @@
       "id": "consistentCharacter-124",
       "type": "consistentCharacter",
       "position": {
-        "x": -162.3767597086062,
-        "y": 450.93274342021226
+        "x": 91.62324029139381,
+        "y": 466.93274342021226
       },
       "data": {
         "characterId": "0770bdf5-e384-411b-b019-9ae5cdb25de7",
@@ -115,6 +115,24 @@
       "measured": {
         "width": 64,
         "height": 73
+      },
+      "selected": false,
+      "dragging": false
+    },
+    {
+      "id": "initialPrompt-126",
+      "type": "initialPrompt",
+      "position": {
+        "x": 83.27263658527144,
+        "y": 627.2234005105045
+      },
+      "data": {
+        "label": "initialPrompt",
+        "adapterCount": 1
+      },
+      "measured": {
+        "width": 220,
+        "height": 162
       }
     }
   ],
@@ -150,6 +168,6 @@
     }
   ],
   "providerId": "mistral",
-  "updatedAt": 1771022298032,
-  "createdAt": 1771022293793
+  "updatedAt": 1771028636960,
+  "createdAt": 1771028626838
 }

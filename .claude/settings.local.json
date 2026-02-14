@@ -34,7 +34,10 @@
       "Bash(move:*)",
       "Bash(powershell -Command:*)",
       "Bash(pnpm next lint:*)",
-      "Bash(pnpm lint:*)"
+      "Bash(pnpm lint:*)",
+      "Bash(git rm:*)",
+      "Bash(cat:*)",
+      "Bash(pnpm build:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\מחשב\\Documents\\projects\\agentic-ide\\agentic-ide-front"

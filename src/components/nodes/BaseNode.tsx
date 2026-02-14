@@ -1,7 +1,7 @@
 import { Handle, Position } from "@xyflow/react";
 import { AlertTriangle, ChevronDown, ChevronRight, Copy, Check, Loader2, Play, Plus, Settings } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import type { NodeExecutionStatus } from "@/lib/engine/types";
+import type { NodeExecutionStatus } from "@/modules/image-gen-editor";
 
 const MAX_ADAPTERS = 5;
 

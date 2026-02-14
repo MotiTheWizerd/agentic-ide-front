@@ -1,5 +1,5 @@
 import type { Node, Edge } from "@xyflow/react";
-import type { ExecutionState } from "@/lib/engine/types";
+import type { ExecutionState } from "@/modules/image-gen-editor";
 
 export interface FlowData {
   id: string;

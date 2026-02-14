@@ -1,6 +1,6 @@
 export { executeGraph } from "./runner";
-export { buildExecutionPlan, getTextInputNodeIds, getAdapterInputNodeIds } from "./graph";
-export { executorRegistry } from "./executors";
+export { graphManager, buildExecutionPlan, getTextInputNodeIds, getAdapterInputNodeIds, getUpstreamNodes, getDownstreamNodes } from "./graph";
+export { executorManager, executorRegistry } from "./executor";
 export type {
   NodeExecutionStatus,
   NodeOutput,

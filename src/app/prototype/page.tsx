@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { prepareImageForAPI } from "@/lib/image-utils";
+import { prepareImageForAPI } from "@/modules/image-gen-editor";
 import {
   UserRound,
   ImagePlus,

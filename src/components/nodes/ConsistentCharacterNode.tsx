@@ -1,6 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { useFlowStore } from "@/store/flow-store";
-import type { NodeExecutionStatus } from "@/lib/engine/types";
+import type { NodeExecutionStatus } from "@/modules/image-gen-editor";
 
 const statusRing: Record<NodeExecutionStatus, string> = {
   idle: "ring-amber-500/30",

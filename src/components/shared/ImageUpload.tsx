@@ -1,7 +1,7 @@
 import { useRef, useCallback, type ReactNode } from "react";
 import { X, Maximize2, ImagePlus, ClipboardPaste } from "lucide-react";
 import { useFlowStore } from "@/store/flow-store";
-import { prepareImageForAPI } from "@/lib/image-utils";
+import { prepareImageForAPI } from "@/modules/image-gen-editor";
 
 interface ImageUploadProps {
   image: string;

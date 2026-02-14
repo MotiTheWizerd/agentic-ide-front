@@ -13,12 +13,12 @@ import type {
   ExecutionState,
   NodeExecutionStatus,
   NodeOutput,
-} from "@/lib/engine/types";
-import { executeGraph } from "@/lib/engine/runner";
-import { getDownstreamNodes, getUpstreamNodes } from "@/lib/engine/graph";
-import { eventBus } from "@/lib/event-bus";
+} from "@/modules/image-gen-editor";
+import { executeGraph } from "@/modules/image-gen-editor/engine/runner";
+import { getDownstreamNodes, getUpstreamNodes } from "@/modules/image-gen-editor/engine/graph";
+import { eventBus } from "@/modules/image-gen-editor";
 import { toastSuccess, toastError } from "@/lib/toast";
-import { undoManager, type Snapshot } from "@/lib/undo-manager";
+import { undoManager, type Snapshot } from "@/modules/image-gen-editor";
 import type { FlowData } from "./types";
 
 export type NodeData = Record<string, unknown>;

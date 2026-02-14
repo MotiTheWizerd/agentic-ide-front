@@ -3,13 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2 } from "lucide-react";
-import { BRAND } from "@/lib/constants";
-import { setTokens } from "@/lib/auth";
-import { useUserStore } from "@/store/user-store";
+import { ArrowLeft, Loader2, Shield } from "lucide-react";
+import { setBoTokens } from "@/lib/backoffice-auth";
 import api from "@/lib/api";
 
-export default function LoginPage() {
+export default function BackofficeLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,24 +20,21 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const { data } = await api.post("/auth/login", { identifier: email, password });
-      setTokens(data.access_token, data.refresh_token);
-      if (data.user) {
-        useUserStore.getState().setUser(data.user);
-      }
-      router.push("/home");
+      const { data } = await api.post("/auth/backoffice/login", {
+        identifier: email,
+        password,
+      });
+      setBoTokens(data.access_token, data.refresh_token);
+      router.push("/backoffice");
     } catch (err: unknown) {
-      if (
-        err &&
-        typeof err === "object" &&
-        "response" in err &&
-        (err as { response?: { data?: { detail?: string } } }).response?.data
-          ?.detail
-      ) {
-        setError(
-          (err as { response: { data: { detail: string } } }).response.data
-            .detail
-        );
+      const detail = (
+        err as { response?: { data?: { detail?: unknown } } }
+      )?.response?.data?.detail;
+
+      if (typeof detail === "string") {
+        setError(detail);
+      } else if (Array.isArray(detail)) {
+        setError(detail.map((d: { msg?: string }) => d.msg || "").join(", "));
       } else {
         setError("Unable to connect to server. Please try again.");
       }
@@ -49,29 +44,32 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-64px)] items-center justify-center p-4">
+    <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Back to home */}
+        {/* Back to main app */}
         <Link
-          href="/"
+          href="/home"
           className="mb-8 inline-flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-white"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to home
+          Back to main app
         </Link>
 
         {/* Branding */}
         <div className="mb-8 text-center">
+          <div className="mb-3 flex items-center justify-center">
+            <Shield className="h-10 w-10 text-purple-400" />
+          </div>
           <h1 className="mb-2 text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-            {BRAND.name}
+            Backoffice
           </h1>
-          <p className="text-sm text-gray-400">{BRAND.tagline}</p>
+          <p className="text-sm text-gray-400">Admin Panel</p>
         </div>
 
         {/* Login Card */}
         <div className="rounded-2xl border border-gray-700 bg-gray-800/60 p-8 shadow-xl shadow-black/20 backdrop-blur-sm">
           <h2 className="mb-6 text-lg font-semibold text-gray-200">
-            Sign in to your account
+            Sign in to admin
           </h2>
 
           {error && (
@@ -83,17 +81,17 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label
-                htmlFor="email"
+                htmlFor="bo-email"
                 className="mb-1.5 block text-sm font-medium text-gray-400"
               >
                 Email
               </label>
               <input
-                id="email"
+                id="bo-email"
                 type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder="admin@example.com"
                 required
                 className="w-full rounded-lg border border-gray-600 bg-gray-900/70 px-4 py-2.5 text-white placeholder-gray-500 transition-shadow focus:border-transparent focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
@@ -101,13 +99,13 @@ export default function LoginPage() {
 
             <div>
               <label
-                htmlFor="password"
+                htmlFor="bo-password"
                 className="mb-1.5 block text-sm font-medium text-gray-400"
               >
                 Password
               </label>
               <input
-                id="password"
+                id="bo-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -126,13 +124,6 @@ export default function LoginPage() {
               Sign In
             </button>
           </form>
-
-          <p className="mt-6 text-center text-sm text-gray-500">
-            Don&apos;t have an account?{" "}
-            <button className="font-medium text-purple-400 transition-colors hover:text-purple-300">
-              Sign Up
-            </button>
-          </p>
         </div>
       </div>
     </div>

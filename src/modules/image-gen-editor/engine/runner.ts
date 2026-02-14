@@ -1,7 +1,7 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { NodeOutput, StatusCallback } from "./types";
 import { buildExecutionPlan } from "./graph";
-import { executorRegistry } from "./executors";
+import { executorManager } from "./executor";
 import { resolveModelForNode } from "../model-defaults";
 
 /**
@@ -32,7 +32,7 @@ export async function executeGraph(
   for (const step of plan) {
     const { nodeId, nodeType, inputNodeIds, adapterNodeIds } = step;
 
-    const executor = executorRegistry[nodeType];
+    const executor = executorManager.get(nodeType);
     if (!executor) {
       onStatus(nodeId, "skipped");
       continue;

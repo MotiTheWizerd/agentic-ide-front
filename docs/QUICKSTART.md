@@ -89,6 +89,12 @@ src/app/
 │   ├── page.tsx                  # Main canvas (React Flow + toolbar)
 │   ├── characters/page.tsx       # Character management
 │   └── settings/page.tsx         # Settings (placeholder)
+├── backoffice/                   # Backoffice admin area
+│   ├── layout.tsx                # Root wrapper (minimal dark bg)
+│   ├── login/page.tsx            # Admin login (/backoffice/login)
+│   └── (dashboard)/              # Protected route group
+│       ├── layout.tsx            # Auth guard + BackofficeSidebar + header
+│       └── page.tsx              # Dashboard home (/backoffice)
 ├── prototype/page.tsx            # Prototype/legacy page
 └── api/                          # API routes (see below)
 ```
@@ -100,12 +106,14 @@ src/app/
 | `(public)` | Navbar | `/`, `/login` | Landing page + login |
 | `(authenticated)` | Auth guard + MainSidebar + header + UserAvatar | `/home`, `/agents`, `/settings` | Main app shell |
 | `image-genai/` | Own full-screen layout (AppSidebar) | `/image-genai`, `/image-genai/characters`, `/image-genai/settings` | Node editor (standalone) |
+| `backoffice/` | Root: minimal dark bg | `/backoffice/login` | Admin login (no sidebar) |
+| `backoffice/(dashboard)` | Auth guard + BackofficeSidebar + header | `/backoffice` | Admin dashboard (protected) |
 
 ### Authentication Flow
 
 1. User visits `/` → sees landing page
 2. Clicks "Get Started" or "Log In" → navigates to `/login`
-3. Submits email + password → `POST /api/v1/auth/login` → receives JWT tokens + user details
+3. Submits identifier (email or username) + password → `POST /api/v1/auth/login` with `{ identifier, password }` → receives JWT tokens + user details
 4. Tokens stored in localStorage (`access_token` + `refresh_token`)
 5. User details stored in Zustand user store + localStorage (`user_details`)
 6. Redirected to `/home`
@@ -135,9 +143,9 @@ src/app/
                   ▼
 ┌─────────────────────────────────────────────────────┐
 │  Execution Engine                                   │
-│  1. Kahn's topological sort (graph.ts)              │
+│  1. Kahn's topological sort (graph/)                │
 │  2. Sequential execution (runner.ts)                │
-│  3. Executor registry lookup (executors.ts)         │
+│  3. Executor registry lookup (executor/)            │
 │  4. Per-node model resolution (model-defaults.ts)   │
 │  5. API calls to Next.js routes → AI providers      │
 └─────────────────┬───────────────────────────────────┘
@@ -162,21 +170,29 @@ src/app/
 
 ### Key Systems
 
-| System           | File(s)                         | Purpose                                                          |
-| ---------------- | ------------------------------- | ---------------------------------------------------------------- |
-| Branding         | `src/lib/constants.ts`          | Centralized product name, tagline, description                   |
-| Auth             | `src/lib/auth.ts`               | Token storage helpers (get, set, clear, isAuthenticated)         |
-| API Client       | `src/lib/api.ts`                | Axios instance with Bearer token + auto-refresh interceptors     |
-| User Store       | `src/store/user-store.ts`       | Zustand store for current user details (persisted to localStorage) |
-| Zustand Store    | `src/store/flow-store.ts`       | Multi-flow state: nodes, edges, execution status per flow        |
-| Execution Engine | `src/lib/engine/`               | Graph sorting, sequential node execution, executor registry      |
-| Model Defaults   | `src/lib/model-defaults.ts`     | Per-node-type default provider + model assignments               |
-| Editor Manager   | `src/lib/editor-manager.ts`     | Zustand micro-store: editor status, project management, init lifecycle |
-| Event Bus        | `src/lib/event-bus.ts`          | Typed event emitter decoupling UI, persistence, and execution    |
-| Auto-Save        | `src/lib/auto-save.ts`          | Debounced file persistence triggered by `flow:dirty` events      |
-| Undo Manager     | `src/lib/undo-manager.ts`       | Per-flow undo/redo with debounced snapshots and batch grouping   |
-| Text Providers   | `src/lib/providers.ts`          | OpenAI-compatible client factory for all text AI providers       |
-| Image Providers  | `src/lib/image-providers.ts`    | Universal image generation registry (HuggingFace FLUX, GLM-Image Z.AI) |
+| System           | File(s)                                              | Purpose                                                          |
+| ---------------- | ---------------------------------------------------- | ---------------------------------------------------------------- |
+| **Core Module**  | `src/modules/core/`                                  | Shared infrastructure (EventBus, Logger) used by all modules     |
+| EventBus         | `src/modules/core/bus/EventBus.ts`                   | Generic typed pub/sub class — each module instantiates its own   |
+| Logger           | `src/modules/core/logger/Logger.ts`                  | Colored console logger with module prefix                        |
+| **Editor Module**| `src/modules/image-gen-editor/`                      | Image-gen editor subsystem (engine, persistence, events, media)  |
+| Editor Manager   | `src/modules/image-gen-editor/ImageGenEditorManager.ts` | Singleton entry point: DI container, event registry, lifecycle   |
+| Execution Engine | `src/modules/image-gen-editor/engine/`               | Graph analysis, sequential node execution, executor registry     |
+| Graph Manager    | `src/modules/image-gen-editor/engine/graph/`         | Topological sort, edge classification, BFS traversal             |
+| Executor Manager | `src/modules/image-gen-editor/engine/executor/`      | Singleton registry of node executor functions by type            |
+| Model Defaults   | `src/modules/image-gen-editor/model-defaults.ts`     | Per-node-type default provider + model assignments               |
+| Event Bus (editor) | `src/modules/image-gen-editor/event-bus.ts`        | Domain EventMap + singleton bus (uses core EventBus)             |
+| Auto-Save        | `src/modules/image-gen-editor/auto-save.ts`          | Debounced file persistence triggered by `flow:dirty` events      |
+| Undo Manager     | `src/modules/image-gen-editor/undo-manager.ts`       | Per-flow undo/redo with debounced snapshots and batch grouping   |
+| **Shared (lib)** | `src/lib/`                                           | General utilities and AI provider infrastructure                 |
+| Branding         | `src/lib/constants.ts`                               | Centralized product name, tagline, description                   |
+| Auth             | `src/lib/auth.ts`                                    | Token storage helpers (get, set, clear, isAuthenticated)         |
+| Backoffice Auth  | `src/lib/backoffice-auth.ts`                         | Backoffice token storage helpers (separate from user auth)       |
+| API Client       | `src/lib/api.ts`                                     | Axios instance with Bearer token + auto-refresh interceptors     |
+| Text Providers   | `src/lib/providers.ts`                               | OpenAI-compatible client factory for all text AI providers       |
+| Image Providers  | `src/lib/image-providers.ts`                         | Universal image generation registry (HuggingFace FLUX, GLM-Image Z.AI) |
+| User Store       | `src/store/user-store.ts`                            | Zustand store for current user details (persisted to localStorage) |
+| Flow Store       | `src/store/flow-store.ts`                            | Multi-flow state: nodes, edges, execution status per flow        |
 
 ---
 
@@ -232,6 +248,30 @@ Used by the image-genai layout for the node editor.
 | Settings | Settings | `/image-genai/settings` | gray |
 | LogOut | Sign Out | → `/login` | red (hover) |
 
+### BackofficeSidebar (Admin Area)
+
+**File:** `src/components/backoffice/backoffice-sidebar.tsx`
+
+Used by the backoffice `(dashboard)` layout for admin pages.
+
+| Icon | Label | Route | Color |
+| ---- | ----- | ----- | ----- |
+| LayoutDashboard | Dashboard | `/backoffice` | blue |
+| Users | Users | `/backoffice/users` | emerald |
+| FolderKanban | Projects | `/backoffice/projects` | amber |
+| BarChart3 | Analytics | `/backoffice/analytics` | fuchsia |
+| Settings2 | Settings | `/backoffice/settings` | gray |
+| LogOut | Sign Out | → `/backoffice/login` | red (hover) |
+
+### Backoffice Authentication Flow
+
+1. Admin visits `/backoffice/login` → sees login form (no sidebar/header)
+2. Submits identifier + password → `POST /api/v1/auth/backoffice/login` with `{ identifier, password }`
+3. Tokens stored in separate localStorage keys (`bo_access_token` + `bo_refresh_token`)
+4. Redirected to `/backoffice` → dashboard with sidebar + header
+5. Auth is isolated from the main app — admin and user sessions are independent
+6. Logout clears backoffice tokens only → redirect to `/backoffice/login`
+
 ---
 
 ## Node Types
@@ -282,11 +322,11 @@ Nodes are the building blocks of a flow. Each node has typed input/output handle
 
 When you click **Run**, the engine:
 
-1. **Topological Sort** — Kahn's algorithm (`graph.ts`) builds an execution plan. Groups are excluded. Cycles are detected and rejected.
+1. **Topological Sort** — Kahn's algorithm (`graph/topological-sort.ts`) builds an execution plan. Groups are excluded. Cycles are detected and rejected. Edge classification (`graph/edge-classification.ts`) separates text inputs from adapter inputs.
 2. **Sequential Execution** — `runner.ts` iterates the sorted plan. For each node:
    - Resolves the effective provider + model via `resolveModelForNode()` (priority: node override → node-type default → global provider)
    - Gathers text inputs from upstream edges and adapter inputs from adapter edges
-   - Looks up the executor in `executorRegistry` and calls it
+   - Looks up the executor via `executorManager.get(nodeType)` and calls it
    - Calls `onStatus(nodeId, status, output)` for every state transition
 3. **Status Flow** — Each node transitions through: `idle → pending → running → complete/error/skipped`
 4. **Error Propagation** — If an upstream node errors, all downstream nodes in the chain are marked `error` with "Upstream node failed"
@@ -360,6 +400,12 @@ src/
 │   │   ├── page.tsx                        # Main canvas (React Flow + sidebar + toolbar)
 │   │   ├── characters/page.tsx             # Character management page
 │   │   └── settings/page.tsx               # Settings page
+│   ├── backoffice/
+│   │   ├── layout.tsx                      # Root wrapper (minimal dark bg)
+│   │   ├── login/page.tsx                  # Admin login page (/backoffice/login)
+│   │   └── (dashboard)/                    # Protected route group
+│   │       ├── layout.tsx                  # Auth guard + BackofficeSidebar + header
+│   │       └── page.tsx                    # Dashboard home (/backoffice)
 │   ├── prototype/page.tsx                  # Prototype/legacy page
 │   └── api/
 │       ├── flows/route.ts                  # GET list / POST save flow
@@ -379,6 +425,45 @@ src/
 │       ├── characters/route.ts             # GET/POST — character CRUD
 │       ├── characters/[id]/image/route.ts  # GET — character avatar image
 │       └── claude-code/test-claude/route.ts # GET — Claude CLI connectivity test
+├── modules/
+│   ├── core/                               # Shared infrastructure (domain-agnostic)
+│   │   ├── index.ts                        # Core barrel export
+│   │   ├── bus/
+│   │   │   ├── EventBus.ts                 # Generic typed EventBus<TEventMap> class
+│   │   │   └── index.ts
+│   │   ├── events/
+│   │   │   └── index.ts                    # Shared cross-module event types (placeholder)
+│   │   └── logger/
+│   │       ├── Logger.ts                   # Colored console logger with module prefix
+│   │       └── index.ts
+│   └── image-gen-editor/                   # Image-gen editor module (single responsibility)
+│       ├── index.ts                        # Barrel export (public API surface)
+│       ├── ImageGenEditorManager.ts        # Singleton entry point: DI, events, lifecycle
+│       ├── event-bus.ts                    # Domain EventMap + singleton (uses core EventBus)
+│       ├── auto-save.ts                    # Debounced file persistence via event bus
+│       ├── undo-manager.ts                 # Per-flow undo/redo (snapshot stacks + debounce)
+│       ├── model-defaults.ts               # Per-node-type model assignments
+│       ├── scene-prompts.ts                # Scene prompt composition from dropdown values
+│       ├── image-utils.ts                  # Image processing utilities
+│       ├── characters.ts                   # Character data helpers (localStorage)
+│       └── engine/
+│           ├── index.ts                    # Engine barrel export
+│           ├── types.ts                    # NodeOutput, ExecutionState, StatusCallback types
+│           ├── runner.ts                   # executeGraph() — orchestrates full pipeline run
+│           ├── graph/                      # Graph analysis sub-module
+│           │   ├── GraphManager.ts         # Singleton facade for graph operations
+│           │   ├── index.ts                # Barrel export
+│           │   ├── topological-sort.ts     # Kahn's algorithm, cycle detection
+│           │   ├── edge-classification.ts  # Text vs adapter edge classification
+│           │   └── traversal.ts            # BFS upstream/downstream traversal
+│           └── executor/                   # Node executor sub-module
+│               ├── ExecutorManager.ts      # Singleton registry manager
+│               ├── index.ts                # Barrel export
+│               ├── utils.ts               # Shared helpers (mergeInputText, persona injection)
+│               ├── data-sources.ts         # consistentCharacter, sceneBuilder executors
+│               ├── text-processing.ts      # initialPrompt, promptEnhancer, translator, etc.
+│               ├── image-processing.ts     # imageDescriber, imageGenerator, personasReplacer
+│               └── output.ts              # textOutput executor
 ├── components/
 │   ├── landing/
 │   │   ├── navbar.tsx                      # Landing page fixed navbar
@@ -415,6 +500,8 @@ src/
 │   │   ├── ProviderSelect.tsx              # AI provider selector (characters, prototype pages)
 │   │   ├── UserAvatar.tsx                  # Reusable user avatar (initials, gradient circle)
 │   │   └── AppToaster.tsx                  # Sonner toaster (dark theme, bottom-right)
+│   ├── backoffice/
+│   │   └── backoffice-sidebar.tsx          # Backoffice sidebar (Dashboard, Users, Projects, Analytics, Settings)
 │   ├── ui/                                 # Radix UI primitives (button, dialog, popover, command)
 │   ├── main-sidebar.tsx                    # Main app sidebar (Home, Image GenAI, Agents, Settings)
 │   ├── app-sidebar.tsx                     # Image GenAI sidebar (Editor, Characters, Settings)
@@ -424,28 +511,15 @@ src/
 │   ├── flow-store.ts                       # Zustand store (multi-flow state + actions)
 │   ├── user-store.ts                       # Zustand store (current user details, localStorage-persisted)
 │   └── types.ts                            # FlowData, TabState interfaces
-└── lib/
+└── lib/                                    # General utilities + AI provider infrastructure
     ├── constants.ts                        # Branding constants (BRAND.name, tagline, description)
     ├── auth.ts                             # Token helpers (get/set/clear tokens, isAuthenticated)
+    ├── backoffice-auth.ts                  # Backoffice token storage helpers
     ├── api.ts                              # Axios instance (baseURL, Bearer interceptor, auto-refresh)
     ├── providers.ts                        # Text AI provider config + OpenAI client factory
     ├── image-providers.ts                  # Image generation provider registry
-    ├── model-defaults.ts                   # Per-node-type model assignments
-    ├── editor-manager.ts                   # Editor lifecycle manager (Zustand micro-store)
-    ├── event-bus.ts                        # Typed EventEmitter (flow + execution + editor events)
-    ├── auto-save.ts                        # Debounced file persistence via event bus
-    ├── undo-manager.ts                     # Per-flow undo/redo history (snapshot stacks + debounce)
     ├── toast.ts                            # Sonner toast helpers (success/error/info/warning)
-    ├── characters.ts                       # Character data helpers
-    ├── scene-prompts.ts                    # Scene prompt composition from dropdown values
-    ├── image-utils.ts                      # Image processing utilities
     ├── utils.ts                            # General utilities (cn, clsx)
-    ├── engine/
-    │   ├── index.ts                        # Engine barrel export
-    │   ├── types.ts                        # NodeOutput, ExecutionState, StatusCallback types
-    │   ├── graph.ts                        # Kahn's topological sort, upstream/downstream BFS
-    │   ├── runner.ts                       # executeGraph() — orchestrates full pipeline run
-    │   └── executors.ts                    # Executor registry (one function per node type)
     ├── agents/                             # Agent framework (template-based prompts, executor)
     └── claude-code/                        # Claude CLI integration (API adapter)
 ```
@@ -528,8 +602,9 @@ The frontend communicates with a separate FastAPI backend for authentication.
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
-| POST | `/api/v1/auth/login` | Email + password → access + refresh tokens |
+| POST | `/api/v1/auth/login` | Credentials + password → access + refresh tokens (user) |
 | POST | `/api/v1/auth/refresh` | Refresh token → new token pair |
+| POST | `/api/v1/auth/backoffice/login` | Credentials + password → access + refresh tokens (admin) |
 
 Access tokens expire in 30 minutes, refresh tokens in 7 days. The axios interceptor in `api.ts` handles automatic token refresh transparently.
 
@@ -565,7 +640,7 @@ All AI processing routes accept a `providerId` and optional `model` field. They 
 
 ## Event Bus
 
-The typed event bus (`src/lib/event-bus.ts`) decouples the UI, persistence, and execution layers.
+The event bus uses a generic `EventBus<T>` class from `src/modules/core/bus/` instantiated with the editor's domain `EventMap` in `src/modules/image-gen-editor/event-bus.ts`. It decouples the UI, persistence, and execution layers.
 
 | Event                    | Payload                                  | Listeners                |
 | ------------------------ | ---------------------------------------- | ------------------------ |

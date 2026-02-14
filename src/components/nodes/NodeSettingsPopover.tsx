@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { X } from "lucide-react";
-import { NODE_MODEL_DEFAULTS } from "@/lib/model-defaults";
+import { NODE_MODEL_DEFAULTS } from "@/modules/image-gen-editor";
 import { GeneralDropdown } from "@/components/shared/GeneralDropdown";
 
 interface ProviderInfo {

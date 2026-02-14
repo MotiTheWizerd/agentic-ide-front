@@ -6,8 +6,8 @@
       "id": "initialPrompt-100",
       "type": "initialPrompt",
       "position": {
-        "x": 425.22141706924316,
-        "y": 264.77455716586144
+        "x": -184.98266718026412,
+        "y": -229.27365028704864
       },
       "data": {
         "label": "initialPrompt",
@@ -17,15 +17,15 @@
         "width": 220,
         "height": 162
       },
-      "selected": false,
+      "selected": true,
       "dragging": false
     },
     {
       "id": "promptEnhancer-101",
       "type": "promptEnhancer",
       "position": {
-        "x": 775.7689210950082,
-        "y": 316.9404186795492
+        "x": 165.56483684550096,
+        "y": -177.10778877336085
       },
       "data": {
         "label": "promptEnhancer"
@@ -34,7 +34,7 @@
         "width": 230,
         "height": 152
       },
-      "selected": false,
+      "selected": true,
       "dragging": false
     },
     {
@@ -65,10 +65,11 @@
       "sourceHandle": "text-out",
       "target": "promptEnhancer-101",
       "targetHandle": "text-in",
-      "id": "xy-edge__initialPrompt-100text-out-promptEnhancer-101text-in"
+      "id": "xy-edge__initialPrompt-100text-out-promptEnhancer-101text-in",
+      "selected": true
     }
   ],
   "providerId": "mistral",
-  "updatedAt": 1770948404079,
-  "createdAt": 1770948393953
+  "updatedAt": 1771024177079,
+  "createdAt": 1771024171962
 }

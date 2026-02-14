@@ -39,12 +39,11 @@ import {
 } from "lucide-react";
 import { useFlowStore } from "@/store/flow-store";
 import { nodeTypes } from "@/components/nodes";
-import { getCharacters, type Character } from "@/lib/characters";
+import { getCharacters, type Character, imageGenEditor, useImageGenEditorStore } from "@/modules/image-gen-editor";
 import { GeneralDropdown } from "@/components/shared/GeneralDropdown";
 import { Modal } from "@/components/shared/Modal";
 import { TabBar } from "@/components/TabBar";
 import { ImageLightbox } from "@/components/ImageLightbox";
-import { useEditorManager, getNextNodeId } from "@/lib/editor-manager";
 import { useUserStore } from "@/store/user-store";
 import { BRAND } from "@/lib/constants";
 
@@ -131,15 +130,13 @@ function ImageGenAIInner() {
   const user = useUserStore((s) => s.user);
 
   // Editor manager
-  const projects = useEditorManager((s) => s.projects);
-  const activeProjectId = useEditorManager((s) => s.activeProjectId);
-  const selectProject = useEditorManager((s) => s.selectProject);
-  const createProject = useEditorManager((s) => s.createProject);
+  const projects = useImageGenEditorStore((s) => s.projects);
+  const activeProjectId = useImageGenEditorStore((s) => s.activeProjectId);
 
   // Initialize editor manager on mount
   useEffect(() => {
     if (!user) return;
-    useEditorManager.getState().init(user.id);
+    imageGenEditor.init(user.id);
   }, [user]);
 
   // Create project modal
@@ -151,7 +148,7 @@ function ImageGenAIInner() {
     if (!projectName.trim() || !user) return;
     setCreatingProject(true);
     try {
-      await createProject(projectName.trim(), user.id);
+      await imageGenEditor.createProject(projectName.trim(), user.id);
       setProjectName("");
       setShowCreateProject(false);
     } catch {
@@ -159,7 +156,7 @@ function ImageGenAIInner() {
     } finally {
       setCreatingProject(false);
     }
-  }, [projectName, user, createProject]);
+  }, [projectName, user]);
 
   // Animate only edges connected to running/pending nodes
   const nodeStatus = execution?.nodeStatus;
@@ -265,7 +262,7 @@ function ImageGenAIInner() {
       const charData: Character | null = charRaw ? JSON.parse(charRaw) : null;
 
       const newNode: Node = {
-        id: `${type}-${getNextNodeId()}`,
+        id: `${type}-${imageGenEditor.getNextNodeId()}`,
         type,
         position,
         data: isGroup
@@ -375,7 +372,7 @@ function ImageGenAIInner() {
           <GeneralDropdown
             options={[{ value: "", label: "Select project" }, ...projects]}
             value={activeProjectId}
-            onChange={selectProject}
+            onChange={(v) => imageGenEditor.selectProject(v)}
             placeholder="Select project"
           />
           <button

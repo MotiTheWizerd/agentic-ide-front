@@ -4,7 +4,7 @@ import { CloudSun } from "lucide-react";
 import { BaseNode } from "./BaseNode";
 import { NodeSettingsPopover } from "./NodeSettingsPopover";
 import { useFlowStore } from "@/store/flow-store";
-import { SCENE_OPTIONS, type SceneCategory } from "@/lib/scene-prompts";
+import { SCENE_OPTIONS, type SceneCategory } from "@/modules/image-gen-editor";
 
 const selectClass =
   "w-full bg-gray-800/60 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 focus:outline-none focus:ring-1 focus:ring-sky-500/50";
