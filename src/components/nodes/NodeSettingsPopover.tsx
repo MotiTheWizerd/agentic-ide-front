@@ -170,8 +170,8 @@ export function NodeSettingsPopover({
           )}
         </div>
 
-        {/* Model Parameters Section */}
-        {hasParams && (
+        {/* Model Parameters Section — hidden for imageGenerator (shown inline in node body) */}
+        {hasParams && nodeType !== "imageGenerator" && (
           <div className="space-y-2 pt-1.5 border-t border-gray-700/50">
             <h3 className="text-[8px] font-semibold text-gray-400 uppercase tracking-wider">
               Model Parameters
