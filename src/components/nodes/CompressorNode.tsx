@@ -13,6 +13,7 @@ export function CompressorNode({ id, data }: NodeProps) {
   const outputText = useFlowStore((s) => s.flows[s.activeFlowId]?.execution.nodeOutputs[id]?.text);
   const userProviderId = data.providerId as string | undefined;
   const userModel = data.model as string | undefined;
+  const userProviderParams = data.providerParams as Record<string, unknown> | undefined;
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
@@ -39,6 +40,8 @@ export function CompressorNode({ id, data }: NodeProps) {
           model={userModel}
           onProviderChange={(pid) => updateNodeData(id, { providerId: pid })}
           onModelChange={(m) => updateNodeData(id, { model: m || undefined })}
+          providerParams={userProviderParams}
+          onProviderParamsChange={(params) => updateNodeData(id, { providerParams: params })}
           onClose={() => setSettingsOpen(false)}
         />
       )}

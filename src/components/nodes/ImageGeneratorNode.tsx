@@ -23,6 +23,7 @@ export function ImageGeneratorNode({ id, data }: NodeProps) {
   );
   const userProviderId = data.providerId as string | undefined;
   const userModel = data.model as string | undefined;
+  const userProviderParams = data.providerParams as Record<string, unknown> | undefined;
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
@@ -62,8 +63,10 @@ export function ImageGeneratorNode({ id, data }: NodeProps) {
           nodeType="imageGenerator"
           providerId={userProviderId}
           model={userModel}
+          providerParams={userProviderParams}
           onProviderChange={(pid) => updateNodeData(id, { providerId: pid })}
           onModelChange={(m) => updateNodeData(id, { model: m || undefined })}
+          onProviderParamsChange={(params) => updateNodeData(id, { providerParams: params })}
           onClose={() => setSettingsOpen(false)}
         />
       )}

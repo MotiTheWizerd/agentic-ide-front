@@ -406,6 +406,25 @@ All text providers use OpenAI-compatible APIs via the OpenAI SDK.
 
 > **Note:** GLM-Image uses the Z.AI native API directly (not routed through HuggingFace). It returns an image URL which is downloaded and converted to base64 by the provider. Uses `GLM_API_KEY`.
 
+### Dynamic Model Configuration (Backend-Driven)
+
+Model parameters are now managed by the **FastAPI backend** with JSON schema generation. Each model has specific configurable parameters (e.g., `aspect_ratio`, `safety_check`, `guidance_scale`) that are dynamically rendered in the settings modal.
+
+**Backend endpoint:** `GET /api/v1/providers/models/schemas` — returns field schemas per model
+
+**Frontend integration:**
+- `src/lib/provider-schemas.ts` — fetches model schemas from backend
+- `src/components/shared/SchemaField.tsx` — dynamic field renderer (select, boolean, number, text)
+- `src/components/nodes/NodeSettingsPopover.tsx` — modal with provider/model dropdowns + dynamic parameter fields
+
+**Field types:**
+- `select` → dropdown with options
+- `boolean` → checkbox
+- `number` → number input with min/max/step validation
+- `text` → text input
+
+**Priority chain:** node override → node-type defaults → provider defaults
+
 ### Per-Node Model Defaults
 
 Each node type has a default provider + model assignment. Resolution priority:
@@ -872,7 +891,7 @@ Existing `import { eventBus }`, `import { undoManager }`, `import { imageGenEdit
 - **Status Indicators** — Each node shows its execution state (pending → running spinner → green complete / red error)
 - **Toast Notifications** — Sonner-based themed toasts for pipeline completion, errors, and info
 - **Image Upload** — Drag & drop, Ctrl+V paste from clipboard, or click to pick files
-- **Provider Selection** — Per-node provider + model override via settings popover on all nodes (GeneralDropdown combobox). Image Generator nodes show image providers; text nodes show text providers.
+- **Provider Selection** — Per-node provider + model override via settings modal on all nodes. Image Generator nodes show image providers; text nodes show text providers. Modal includes dynamic model-specific parameter fields (backend-driven schemas). Compact design with small fonts and tight spacing. Safety_check parameter always appears at the bottom.
 - **Project Selector** — Dropdown in the editor header to select/create projects (backed by FastAPI `POST /api/v1/projects` and `POST /api/v1/projects/select`)
 - **LLM Indicator** — Nodes that use AI models display a brain icon in the header
 - **Image Lightbox** — Click generated images for full-screen preview

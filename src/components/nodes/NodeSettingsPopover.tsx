@@ -1,9 +1,18 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { X } from "lucide-react";
 import { NODE_MODEL_DEFAULTS } from "@/modules/image-gen-editor";
 import { GeneralDropdown } from "@/components/shared/GeneralDropdown";
+import { SchemaField } from "@/components/shared/SchemaField";
+import { Modal } from "@/components/shared/Modal";
+import api from "@/lib/api";
+import {
+  fetchModelSchemas,
+  getModelSchema,
+  getModelDefaults,
+  type ModelSchemasResponse,
+} from "@/lib/provider-schemas";
 
 interface ProviderInfo {
   id: string;
@@ -18,8 +27,10 @@ interface NodeSettingsPopoverProps {
   nodeType: string;
   providerId?: string;
   model?: string;
+  providerParams?: Record<string, unknown>;
   onProviderChange: (providerId: string) => void;
   onModelChange: (model: string) => void;
+  onProviderParamsChange?: (params: Record<string, unknown>) => void;
   onClose: () => void;
 }
 
@@ -27,16 +38,15 @@ export function NodeSettingsPopover({
   nodeType,
   providerId,
   model,
+  providerParams = {},
   onProviderChange,
   onModelChange,
+  onProviderParamsChange,
   onClose,
 }: NodeSettingsPopoverProps) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  const isImageNode = nodeType === "imageGenerator";
-  const endpoint = isImageNode ? "/api/image-providers" : "/api/providers";
+  const endpoint = "/providers";
   const defaults = NODE_MODEL_DEFAULTS[nodeType];
-  const activeProviderId = providerId || defaults?.providerId || (isImageNode ? "huggingface" : "mistral");
+  const activeProviderId = providerId || defaults?.providerId || "mistral";
   const activeModel = model || defaults?.model || "";
 
   // Fetch providers
@@ -46,11 +56,11 @@ export function NodeSettingsPopover({
 
   useEffect(() => {
     if (providerCache.has(endpoint)) return;
-    fetch(endpoint)
-      .then((r) => r.json())
-      .then((data) => {
-        providerCache.set(endpoint, data.providers);
-        setProviders(data.providers);
+    api
+      .get(endpoint)
+      .then((res) => {
+        providerCache.set(endpoint, res.data.providers);
+        setProviders(res.data.providers);
       })
       .catch(() => {});
   }, [endpoint]);
@@ -65,81 +75,128 @@ export function NodeSettingsPopover({
     (pid: string) => {
       onProviderChange(pid);
       onModelChange("");
+      // Clear provider params when provider changes
+      if (onProviderParamsChange) {
+        onProviderParamsChange({});
+      }
     },
-    [onProviderChange, onModelChange]
+    [onProviderChange, onModelChange, onProviderParamsChange]
   );
 
-  // Close on outside click / escape
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
+  const handleModelChange = useCallback(
+    (m: string) => {
+      onModelChange(m);
+      // Clear provider params when model changes
+      if (onProviderParamsChange) {
+        onProviderParamsChange({});
       }
-    }
-    function handleEscape(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [onClose]);
+    },
+    [onModelChange, onProviderParamsChange]
+  );
+
+  // Fetch model schemas
+  const [schemas, setSchemas] = useState<ModelSchemasResponse>({ models: {} });
+
+  useEffect(() => {
+    fetchModelSchemas().then(setSchemas);
+  }, []);
+
+  // Get schema for active MODEL (not provider!)
+  const modelSchema = activeModel ? getModelSchema(activeModel, schemas) : undefined;
+  const hasParams = modelSchema && Object.keys(modelSchema.fields).length > 0;
+
+  // Merge defaults with current params
+  const defaults_params = activeModel ? getModelDefaults(activeModel, schemas) : {};
+  const activeParams = { ...defaults_params, ...providerParams };
+
+  const handleParamChange = useCallback(
+    (key: string, value: unknown) => {
+      if (!onProviderParamsChange) return;
+      onProviderParamsChange({ ...activeParams, [key]: value });
+    },
+    [activeParams, onProviderParamsChange]
+  );
 
   return (
-    <div
-      ref={ref}
-      className="nodrag nowheel absolute bottom-full left-0 mb-1 z-50 w-52 bg-gray-800 border border-gray-600 rounded-lg shadow-xl shadow-black/50 p-2.5"
-      onClick={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-          Settings
-        </span>
-        <button
-          onClick={onClose}
-          className="p-0.5 text-gray-500 hover:text-gray-300 transition-colors"
-        >
-          <X className="w-3 h-3" />
-        </button>
-      </div>
-
-      <div className="space-y-2">
-        {/* Provider */}
-        <div className="flex items-center gap-2">
-          <label className="text-[9px] text-gray-500 uppercase tracking-wider w-14 shrink-0">
-            Provider
-          </label>
-          <GeneralDropdown
-            options={providerOptions}
-            value={activeProviderId}
-            onChange={handleProviderChange}
-          />
+    <Modal open={true} onClose={onClose}>
+      <div className="space-y-3">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-gray-700 pb-2">
+          <h2 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">
+            Settings
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-0.5 text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
 
-        {/* Model */}
-        {activeProviderId !== "claude" && modelOptions.length > 0 && (
+        {/* Provider & Model Section */}
+        <div className="space-y-2">
+          {/* Provider */}
           <div className="flex items-center gap-2">
-            <label className="text-[9px] text-gray-500 uppercase tracking-wider w-14 shrink-0">
-              Model
+            <label className="text-[8px] text-gray-400 uppercase tracking-wider w-16 shrink-0">
+              Provider
             </label>
             <GeneralDropdown
-              options={modelOptions}
-              value={activeModel}
-              onChange={onModelChange}
+              options={providerOptions}
+              value={activeProviderId}
+              onChange={handleProviderChange}
+              popoverWidth="w-48"
             />
           </div>
-        )}
 
-        {activeProviderId === "claude" && (
-          <div className="text-[9px] text-gray-500 italic pl-16">
-            Claude CLI — auto
+          {/* Model */}
+          {activeProviderId !== "claude" && modelOptions.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-[8px] text-gray-400 uppercase tracking-wider w-16 shrink-0">
+                Model
+              </label>
+              <GeneralDropdown
+                options={modelOptions}
+                value={activeModel}
+                onChange={handleModelChange}
+                popoverWidth="w-48"
+              />
+            </div>
+          )}
+
+          {activeProviderId === "claude" && (
+            <div className="text-[8px] text-gray-500 italic pl-[4.5rem]">
+              Claude CLI — auto
+            </div>
+          )}
+        </div>
+
+        {/* Model Parameters Section */}
+        {hasParams && (
+          <div className="space-y-2 pt-1.5 border-t border-gray-700/50">
+            <h3 className="text-[8px] font-semibold text-gray-400 uppercase tracking-wider">
+              Model Parameters
+            </h3>
+            <div className="space-y-1.5">
+              {Object.entries(modelSchema!.fields)
+                .sort(([keyA], [keyB]) => {
+                  // Move safety_check to the bottom
+                  if (keyA === "safety_check") return 1;
+                  if (keyB === "safety_check") return -1;
+                  return 0;
+                })
+                .map(([key, fieldConfig]) => (
+                  <SchemaField
+                    key={key}
+                    name={key}
+                    field={fieldConfig}
+                    value={activeParams[key]}
+                    onChange={(val) => handleParamChange(key, val)}
+                  />
+                ))}
+            </div>
           </div>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }

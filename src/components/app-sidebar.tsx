@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Workflow, UserRound, Settings, LogOut } from "lucide-react";
+import { Workflow, UserRound, Settings, LogOut, Images } from "lucide-react";
 import { clearTokens } from "@/lib/auth";
 import { useUserStore } from "@/store/user-store";
 
 const navItems = [
   { href: "/image-genai", icon: Workflow, label: "Editor", color: "text-blue-400" },
   { href: "/image-genai/characters", icon: UserRound, label: "Characters", color: "text-amber-400" },
+  { href: "/image-genai/gallery", icon: Images, label: "Gallery", color: "text-fuchsia-400" },
   { href: "/image-genai/settings", icon: Settings, label: "Settings", color: "text-gray-400" },
 ];
 
